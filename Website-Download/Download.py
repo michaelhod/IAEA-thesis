@@ -24,7 +24,7 @@ def default_filename(url: str) -> Path:
     """Save into <netloc>/<everything-after-netloc>, falling back to index.html."""
     p = urlparse(url)
     root = Path(p.netloc)
-    sub = p.path.lstrip("/") or "index.html"
+    sub = p.path.lstrip("/") + ".html"
     target = root / sub
     target.parent.mkdir(parents=True, exist_ok=True)
     return target
