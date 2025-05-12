@@ -1,5 +1,7 @@
 """
-Download.py  –  Save the HTML of a single URL.
+Download.py  –  Save the HTML of a webpage
+
+Overwrites previous downloads
 
 Usage:
     python Download.py https://example.com
@@ -16,7 +18,7 @@ from urllib.parse import urlparse, urljoin
 def download(url: str) -> str:
     """Return the HTML of *url* as a Unicode string."""
     resp = requests.get(url, timeout=15)
-    resp.raise_for_status()          # bubble up HTTP errors
+    resp.raise_for_status()
     return resp.text
 
 
@@ -57,7 +59,7 @@ def main():
 
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup.find_all("a", href=True):
-            link = urljoin(url, tag["href"])     # resolve relative → absolute
+            link = urljoin(url, tag["href"]) # resolve relative → absolute
             if urlparse(link).netloc.endswith(base_host) and (link not in visited) and (link not in url_queue):
                 url_queue.append(link)
 
