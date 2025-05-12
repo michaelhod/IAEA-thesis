@@ -1,5 +1,5 @@
 """
-Download.py  –  Save the HTML of a webpage
+Download.py  –  Save the HTML of an entire website
 
 Overwrites previous downloads
 
@@ -8,12 +8,27 @@ Usage:
 """
 
 import sys
+import argparse
 import requests
 from bs4 import BeautifulSoup
 from pathlib import Path
 from collections import deque
 from urllib.parse import urlparse, urljoin
 
+def parse() -> tuple[str, int]:
+    """Return (start_url, max_pages) using argparse for --maxpages."""
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        "url", 
+        help="Starting URL (e.g. https://example.com)")
+    parser.add_argument(
+        "--maxpages",
+        type=int,
+        default=50,
+        metavar="N",
+        help="Maximum pages to download before stopping")
+    args = parser.parse_args()
+    return args.url, args.maxpages
 
 def download(url: str) -> str:
     """Return the HTML of *url* as a Unicode string."""
@@ -37,7 +52,8 @@ def main():
         print("Usage: python Download.py <url>", file=sys.stderr)
         sys.exit(1)
 
-    url = sys.argv[1]
+    url, max_pages = parse()
+
     base_host = urlparse(url).netloc
     url_queue = deque([url])
     visited = set()
@@ -63,7 +79,7 @@ def main():
             if urlparse(link).netloc.endswith(base_host) and (link not in visited) and (link not in url_queue):
                 url_queue.append(link)
 
-        if len(visited) >= 50: break
+        if len(visited) >= max_pages: break
 
 if __name__ == "__main__":
     main()
