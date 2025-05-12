@@ -5,6 +5,7 @@ Overwrites previous downloads
 
 Usage:
     python Download.py https://example.com
+    python Download.py https://example.com --maxpages 200
 """
 
 import sys
