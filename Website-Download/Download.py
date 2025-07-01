@@ -80,7 +80,9 @@ def main():
             if urlparse(link).netloc.endswith(base_host) and (link not in visited) and (link not in url_queue):
                 url_queue.append(link)
 
-        if len(visited) >= max_pages: break
+        if len(visited) >= max_pages:
+            print("Page limit hit")
+            break
 
 if __name__ == "__main__":
     main()
