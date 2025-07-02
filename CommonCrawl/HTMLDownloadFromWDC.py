@@ -21,9 +21,9 @@ WDC_Subsets = [
 BASE_URL  = ("https://data.dws.informatik.uni-mannheim.de/"
              "structureddata/2024-12/quads/classspecific")
 UA = 'cc-schemaxtract/1.0 (JSON-LD & microdata extractor; michaelhodgins@live.co.uk)'
-NUM_SAMPLES = 3              # how many samples to take
-SEED      = 42
-MAX_SKIP  = 10_000_000                 # how many lines to skip max in .gz files
+NUM_SAMPLES = 30              # how many samples to take
+SEED      = None
+MAX_SKIP  = 100_000                 # how many lines to skip max in .gz files
 OUT_DIR   = pathlib.Path("../wdc_microdata_html")
 OUT_DIR.mkdir(exist_ok=True)
 
