@@ -2,6 +2,10 @@
 """
 This script samples random URLs from the Web Data Commons. These are URLs with schema.org.
 It downloads the raw HTML of the pages and saves them to a local directory.
+
+1) Chose a random subset from the Web Data Commons schema.org subsets.
+2) Scrape the subset to get every *.gz file name.
+3) Pick a random *.gz file, and pick a random URL from it.
 """
 
 import random, re, gzip, pathlib, urllib.parse, requests
@@ -9,31 +13,30 @@ from bs4 import BeautifulSoup      # pip install beautifulsoup4
 
 # -------------------------------------------------------------------
 # CONFIGURATION
-BASE_DIRS = [
+WDC_Subsets = [
     "LocalBusiness",
     "GovernmentOrganization",
     "Movie"
 ]
 BASE_URL  = ("https://data.dws.informatik.uni-mannheim.de/"
              "structureddata/2024-12/quads/classspecific")
-UA        = "wdc-lazy-sampler/0.1 (+you@example.com)"
+UA = 'cc-schemaxtract/1.0 (JSON-LD & microdata extractor; michaelhodgins@live.co.uk)'
+NUM_SAMPLES = 3              # how many samples to take
 SEED      = 42
-MAX_SKIP  = 50_000                 # how many lines to skip max
-OUT_DIR   = pathlib.Path("wdc_lazy_html")
+MAX_SKIP  = 10_000_000                 # how many lines to skip max in .gz files
+OUT_DIR   = pathlib.Path("../wdc_microdata_html")
 OUT_DIR.mkdir(exist_ok=True)
 
 random.seed(SEED)
 
 # -------------------------------------------------------------------
 def list_chunks(subset: str) -> list[str]:
-    """Scrape the directory listing to get every *.nq.gz file name."""
+    """Scrape the directory listing to get every *.gz file name."""
     url = f"{BASE_URL}/{subset}/"
     res = requests.get(url, headers={"User-Agent": UA}, timeout=30)
     res.raise_for_status()
     soup = BeautifulSoup(res.text, "html.parser")
-    return [
-        a["href"] for a in soup.select("a[href$='.nq.gz']") if a["href"].endswith(".nq.gz")
-    ]
+    return [a["href"] for a in soup.select("a[href$='.gz']")]
 
 def random_url_from_chunk(subset: str, chunk: str) -> str | None:
     """Open the gz file, skip random(1..MAX_SKIP) lines, return next URL."""
@@ -45,12 +48,11 @@ def random_url_from_chunk(subset: str, chunk: str) -> str | None:
         with gzip.GzipFile(fileobj=r.raw) as gzf:
             for i, line in enumerate(gzf, start=1):
                 if i < start_line:
-                    continue                      # keep skipping
-                # line is bytes → decode
-                parts = line.decode("utf-8", "ignore").rsplit(" ", 2)
-                if len(parts) < 2:
                     continue
-                ctx = parts[-2].lstrip("<").rstrip("> .")
+                parts = line.decode("utf-8", "ignore").split(" ")
+                if len(parts) < 4:
+                    continue
+                ctx = parts[3].lstrip("<").rstrip("> .")
                 if ctx.startswith("http"):
                     return ctx                    # first usable URL
     return None                                   # rare: file exhausted
@@ -68,25 +70,31 @@ def fetch_html(url: str) -> str:
 
 # -------------------------------------------------------------------
 def main():
-    # 1. choose a subset and a random chunk
-    subset = random.choice(BASE_DIRS)
-    chunks = list_chunks(subset)
-    if not chunks:
-        raise RuntimeError(f"No chunks found for {subset}")
-    chunk  = random.choice(chunks)
-    print(f"Subset = {subset}  |  Chunk = {chunk}")
+    i = 0
+    while i < NUM_SAMPLES:
+        # 1. choose a subset and a random chunk
+        subset = random.choice(WDC_Subsets)
+        chunks = list_chunks(subset)
+        if not chunks:
+            raise RuntimeError(f"No chunks found for {subset}")
+        chunk  = random.choice(chunks)
+        print(f"Subset = {subset}  |  Chunk = {chunk}")
 
-    # 2. pick a random URL
-    url = random_url_from_chunk(subset, chunk)
-    if not url:
-        raise RuntimeError("Couldn’t find a usable URL – try again")
-    print("Chosen URL:", url)
+        # 2. pick a random URL
+        url = random_url_from_chunk(subset, chunk)
+        if not url:
+            raise RuntimeError("Couldn’t find a usable URL – try again")
+        print("Chosen URL:", url)
 
-    # 3. download raw HTML
-    html = fetch_html(url)
-    out  = OUT_DIR / f"{urllib.parse.quote_plus(url)}.html"
-    out.write_text(html, encoding="utf-8", errors="ignore")
-    print("Saved HTML →", out.resolve())
+        # 3. download raw HTML
+        html = fetch_html(url)
+        if "itemscope" not in html:
+            continue
+        out  = OUT_DIR / f"{urllib.parse.quote_plus(url)}.html"
+        out.write_text(html, encoding="utf-8", errors="ignore")
+        print("Saved HTML →", out.resolve())
+
+        i += 1
 
 if __name__ == "__main__":
     main()
