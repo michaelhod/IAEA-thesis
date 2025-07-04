@@ -146,7 +146,10 @@ def main():
         print(f"Subset = {subset}  |  gz_file = {gz_file} |  num_samples = {num_samples}")
         
         # 2. pick a random URL
-        urls = random_url_from_gz_file(subset, gz_file, num_samples*100) # *10 creates a buffer incase websites are not usable  # Shuffle to randomize the order
+        urls1 = random_url_from_gz_file(subset, gz_file, num_samples*30) # * creates a buffer incase websites are not usable
+        urls2 = random_url_from_gz_file(subset, gz_file, num_samples*30)
+        urls3 = random_url_from_gz_file(subset, gz_file, num_samples*30)
+        urls = urls1 + urls2 + urls3
         if len(urls) == 0:
             raise RuntimeError("Couldn’t find a usable URL – try again")
         random.shuffle(urls)
