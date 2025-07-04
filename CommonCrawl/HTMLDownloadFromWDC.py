@@ -11,6 +11,9 @@ It downloads the raw HTML of the pages and saves them to a local directory.
 import random, re, gzip, pathlib, urllib.parse, requests
 from bs4 import BeautifulSoup
 import csv
+import concurrent.futures
+import threading
+
 
 PRINT_URLS = False
 
@@ -18,8 +21,13 @@ PRINT_URLS = False
 DOMAINS_VISITED = []
 with open("domains_visited.csv", "r") as f:
     reader = csv.reader(f)
+    # Skip the header if it exists
+    next(reader)
     for row in reader:
-        DOMAINS_VISITED.append(row[0])
+        if len(row) > 0:
+            DOMAINS_VISITED.append(row[0].strip())
+
+print(f"Domains already visited: {len(DOMAINS_VISITED)}")
 
 WDC_Subsets = [
     "AdministrativeArea",
@@ -36,14 +44,14 @@ WDC_Subsets = [
 NUM_SAMPLES = [ # how many web pages to take
     0, # AdministrativeArea
     0, # Answer
-    2, # CollegeOrUniversity
+    200, # CollegeOrUniversity
     0, # Country
-    2, # EducationalOrganization
-    1, # LocalBusiness
-    2, # Organization
-    2, # GovernmentOrganization
+    200, # EducationalOrganization
+    100, # LocalBusiness
+    200, # Organization
+    200, # GovernmentOrganization
     0, # Person
-    2  # Place
+    200  # Place
 ]
 BASE_URL = ("https://data.dws.informatik.uni-mannheim.de/"
              "structureddata/2024-12/quads/classspecific")
@@ -141,63 +149,81 @@ def main():
         gz_files = list_gz_files(subset)
         if not gz_files:
             raise RuntimeError(f"No gz_files found for {subset}")
-        gz_file  = random.choice(gz_files)
+        gz_file1  = random.choice(gz_files)
+        gz_file2  = random.choice(gz_files)
+        gz_file3  = random.choice(gz_files)
         print()
-        print(f"Subset = {subset}  |  gz_file = {gz_file} |  num_samples = {num_samples}")
+        print(f"Subset = {subset}  |  gz_file = {gz_file1}, {gz_file2}, {gz_file3} |  num_samples = {num_samples}")
         
         # 2. pick a random URL
-        urls1 = random_url_from_gz_file(subset, gz_file, num_samples*30) # * creates a buffer incase websites are not usable
-        urls2 = random_url_from_gz_file(subset, gz_file, num_samples*30)
-        urls3 = random_url_from_gz_file(subset, gz_file, num_samples*30)
+        urls1 = random_url_from_gz_file(subset, gz_file1, num_samples*30) # * creates a buffer incase websites are not usable
+        urls2 = random_url_from_gz_file(subset, gz_file2, num_samples*30)
+        urls3 = random_url_from_gz_file(subset, gz_file3, num_samples*30)
         urls = urls1 + urls2 + urls3
         if len(urls) == 0:
             raise RuntimeError("Couldn’t find a usable URL – try again")
         random.shuffle(urls)
 
         print("Downloading HTML")
-        num_samples_saved = 0
+
+        def process_url(url_variation):
+            if PRINT_URLS:
+                print()
+            # 3. download raw HTML
+            if PRINT_URLS:
+                print("Chosen URL:", url_variation)
+
+            html = fetch_html(url_variation)
+
+            if not html:
+                if PRINT_URLS:
+                    print("No HTML")
+                return None
+
+            if "itemscope" not in html:
+                if PRINT_URLS:
+                    print("No Microdata")
+                return None
+
+            if not is_english(html):
+                if PRINT_URLS:
+                    print("Not English")
+                return None
+
+            # 4. save HTML to disk
+            out = OUT_DIR / subset / f"{urllib.parse.quote_plus(url_variation)}.html"
+            out.write_text(html, encoding="utf-8", errors="ignore")
+
+            with open("domains_visited.csv", "a") as f:
+                writer = csv.writer(f)
+                writer.writerow([urllib.parse.urlparse(url_variation).netloc])
+
+            if PRINT_URLS:
+                print("Saved HTML →", out.resolve())
+            if not PRINT_URLS:
+                print("|", end="")
+            return out
+
+        url_variations_list = []
         for url in urls:
             url_variations = [url, "https://" + urllib.parse.urlparse(url).netloc]
-            for url_variation in url_variations:
-                if PRINT_URLS:
-                    print()
-                # 3. download raw HTML
-                if PRINT_URLS:
-                    print("Chosen URL:", url_variation)
+            url_variations_list.extend(url_variations)
 
-                html = fetch_html(url_variation)
+        num_samples_saved = 0
 
-                if not html:
-                    if PRINT_URLS:
-                        print("No HTML")
-                    continue
+        lock = threading.Lock()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {executor.submit(process_url, url_var): url_var for url_var in url_variations_list}
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                if result:
+                    with lock:
+                        num_samples_saved += 1
+                        print(num_samples_saved, end=", ")
+                        if num_samples_saved >= num_samples * len(url_variations_list) / len(urls):  # num variations per url
+                            break
 
-                if "itemscope" not in html:
-                    if PRINT_URLS:
-                        print("No Microdata")
-                    continue
-
-                if not is_english(html):
-                    if PRINT_URLS:
-                        print("Not English")
-                    continue
-
-                # 4. save HTML to disk
-                out  = OUT_DIR / subset / f"{urllib.parse.quote_plus(url_variation)}.html"
-                out.write_text(html, encoding="utf-8", errors="ignore")
-
-                with open("domains_visited.csv", "a") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([urllib.parse.urlparse(url_variation).netloc])
-
-                if PRINT_URLS:
-                    print("Saved HTML →", out.resolve())
-
-                num_samples_saved += 1
-                print(num_samples_saved, end=", ")
-            
-            if num_samples_saved >= num_samples*len(url_variations):
-                break
+#The problem with the lock is that the files are run and saved before the lock is checked
 
 if __name__ == "__main__":
     main()
