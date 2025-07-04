@@ -8,12 +8,12 @@ It downloads the raw HTML of the pages and saves them to a local directory.
 3) Pick a random *.gz file, and pick a random URL from it.
 """
 
-import random, re, gzip, pathlib, urllib.parse, requests
+import random, gzip, pathlib, urllib.parse, requests, hashlib
 from bs4 import BeautifulSoup
 import csv
 import concurrent.futures
 import threading
-
+import itertools
 
 PRINT_URLS = False
 
@@ -53,6 +53,7 @@ NUM_SAMPLES = [ # how many web pages to take
     0, # Person
     200  # Place
 ]
+BATCH_SIZE = 400 #Num of html to download at once
 BASE_URL = ("https://data.dws.informatik.uni-mannheim.de/"
              "structureddata/2024-12/quads/classspecific")
 UA = 'cc-schemaxtract/1.0 (JSON-LD & microdata extractor; michaelhodgins@live.co.uk)'
@@ -90,6 +91,8 @@ def random_url_from_gz_file(subset: str, gz_file: str, num_urls: int) -> str | N
                 
                 if i not in extract_at:
                     continue
+                if len(urls) % 1000 == 0 and not PRINT_URLS:
+                    print("|", end="")
 
                 parts = line.decode("utf-8", "ignore").split(" ")
 
@@ -191,7 +194,8 @@ def main():
                 return None
 
             # 4. save HTML to disk
-            out = OUT_DIR / subset / f"{urllib.parse.quote_plus(url_variation)}.html"
+            hex_name = hashlib.md5(url_variation.encode()).hexdigest() + ".html"
+            out = (OUT_DIR / subset / hex_name).resolve()
             out.write_text(html, encoding="utf-8", errors="ignore")
 
             with open("domains_visited.csv", "a") as f:
@@ -204,24 +208,44 @@ def main():
                 print("|", end="")
             return out
 
+        # --- helper ---------------------------------------------------------------
+        def batched(iterable, size):
+            """Yield successive *size*-item lists from *iterable*."""
+            it = iter(iterable)
+            while True:
+                batch = list(itertools.islice(it, size))
+                if not batch:
+                    break
+                yield batch
+        # --------------------------------------------------------------------------
+
         url_variations_list = []
         for url in urls:
             url_variations = [url, "https://" + urllib.parse.urlparse(url).netloc]
             url_variations_list.extend(url_variations)
 
         num_samples_saved = 0
+        target_samples = num_samples * len(url_variations_list) // len(urls)  # ≈ num_samples × (# variations per URL)
 
         lock = threading.Lock()
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = {executor.submit(process_url, url_var): url_var for url_var in url_variations_list}
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                if result:
-                    with lock:
-                        num_samples_saved += 1
-                        print(num_samples_saved, end=", ")
-                        if num_samples_saved >= num_samples * len(url_variations_list) / len(urls):  # num variations per url
-                            break
+
+        for batch in batched(url_variations_list, BATCH_SIZE):
+            # Only *BATCH_SIZE* threads exist at once
+            with concurrent.futures.ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+                futures = {executor.submit(process_url, url_var): url_var for url_var in batch}
+
+                for future in concurrent.futures.as_completed(futures):
+                    result = future.result()
+                    if result:
+                        with lock:
+                            num_samples_saved += 1
+                            print(num_samples_saved, end=", ")
+
+                            if num_samples_saved >= target_samples:
+                                break  # enough samples – stop early
+
+            if num_samples_saved >= target_samples:
+                break                 # stop submitting further batches
 
 #The problem with the lock is that the files are run and saved before the lock is checked
 
