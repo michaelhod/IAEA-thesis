@@ -39,7 +39,8 @@ WDC_Subsets = [
     "Organization",
     "GovernmentOrganization",
     "Person",
-    "Place"
+    "Place",
+    "FAQPage"
 ]
 NUM_SAMPLES = [ # how many web pages to take
     0, # AdministrativeArea
@@ -51,7 +52,8 @@ NUM_SAMPLES = [ # how many web pages to take
     200, # Organization
     200, # GovernmentOrganization
     0, # Person
-    200  # Place
+    200, # Place
+    200  # FAQPage
 ]
 BATCH_SIZE = 400 #Num of html to download at once
 BASE_URL = ("https://data.dws.informatik.uni-mannheim.de/"
@@ -91,8 +93,6 @@ def random_url_from_gz_file(subset: str, gz_file: str, num_urls: int) -> str | N
                 
                 if i not in extract_at:
                     continue
-                if len(urls) % 1000 == 0 and not PRINT_URLS:
-                    print("|", end="")
 
                 parts = line.decode("utf-8", "ignore").split(" ")
 
@@ -127,7 +127,16 @@ def fetch_html(url: str) -> str:
 
 def is_english(html: str) -> bool:
     """Check if the HTML content is in English."""
-    soup = BeautifulSoup(html, "html.parser")
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception as e:
+        if PRINT_URLS:
+            print(f"Error parsing HTML: {e}")
+        return False
+
+    if not soup.html:
+        return False
 
     lang_attr = soup.html.get("lang")
     if lang_attr:
@@ -144,108 +153,120 @@ def is_english(html: str) -> bool:
 
 # -------------------------------------------------------------------
 def main():
-    for (subset, num_samples) in zip(WDC_Subsets, NUM_SAMPLES):
-        if num_samples <= 0:
-            continue
+    for run in range(40):
 
-        # 1. choose a random gz_file
-        gz_files = list_gz_files(subset)
-        if not gz_files:
-            raise RuntimeError(f"No gz_files found for {subset}")
-        gz_file1  = random.choice(gz_files)
-        gz_file2  = random.choice(gz_files)
-        gz_file3  = random.choice(gz_files)
-        print()
-        print(f"Subset = {subset}  |  gz_file = {gz_file1}, {gz_file2}, {gz_file3} |  num_samples = {num_samples}")
-        
-        # 2. pick a random URL
-        urls1 = random_url_from_gz_file(subset, gz_file1, num_samples*30) # * creates a buffer incase websites are not usable
-        urls2 = random_url_from_gz_file(subset, gz_file2, num_samples*30)
-        urls3 = random_url_from_gz_file(subset, gz_file3, num_samples*30)
-        urls = urls1 + urls2 + urls3
-        if len(urls) == 0:
-            raise RuntimeError("Couldn’t find a usable URL – try again")
-        random.shuffle(urls)
+        DOMAINS_VISITED = []
+        with open("domains_visited.csv", "r") as f:
+            reader = csv.reader(f)
+            # Skip the header if it exists
+            next(reader)
+            for row in reader:
+                if len(row) > 0:
+                    DOMAINS_VISITED.append(row[0].strip())
 
-        print("Downloading HTML")
+        print(f"Domains already visited: {len(DOMAINS_VISITED)}")
 
-        def process_url(url_variation):
-            if PRINT_URLS:
-                print()
-            # 3. download raw HTML
-            if PRINT_URLS:
-                print("Chosen URL:", url_variation)
+        print(f"\nRun {run + 1} of 40")
+        for (subset, num_samples) in zip(WDC_Subsets, NUM_SAMPLES):
+            if num_samples <= 0:
+                continue
 
-            html = fetch_html(url_variation)
+            # 1. choose a random gz_file
+            gz_files = list_gz_files(subset)
+            if not gz_files:
+                raise RuntimeError(f"No gz_files found for {subset}")
+            gz_file1  = random.choice(gz_files)
+            gz_file2  = random.choice(gz_files)
+            gz_file3  = random.choice(gz_files)
+            print()
+            print(f"Subset = {subset}  |  gz_file = {gz_file1}, {gz_file2}, {gz_file3} |  num_samples = {num_samples}")
+            
+            # 2. pick a random URL
+            urls1 = random_url_from_gz_file(subset, gz_file1, num_samples*30) # * creates a buffer incase websites are not usable
+            urls2 = random_url_from_gz_file(subset, gz_file2, num_samples*30)
+            urls3 = random_url_from_gz_file(subset, gz_file3, num_samples*30)
+            urls = urls1 + urls2 + urls3
+            if len(urls) == 0:
+                raise RuntimeError("Couldn’t find a usable URL – try again")
+            random.shuffle(urls)
 
-            if not html:
+            print("Downloading HTML")
+
+            def process_url(url_variation):
                 if PRINT_URLS:
-                    print("No HTML")
-                return None
-
-            if "itemscope" not in html:
+                    print()
+                # 3. download raw HTML
                 if PRINT_URLS:
-                    print("No Microdata")
-                return None
+                    print("Chosen URL:", url_variation)
 
-            if not is_english(html):
+                html = fetch_html(url_variation)
+
+                if not html:
+                    if PRINT_URLS:
+                        print("No HTML")
+                    return None
+
+                if "itemscope" not in html:
+                    if PRINT_URLS:
+                        print("No Microdata")
+                    return None
+
+                if not is_english(html):
+                    if PRINT_URLS:
+                        print("Not English")
+                    return None
+
+                # 4. save HTML to disk
+                hex_name = hashlib.md5(url_variation.encode()).hexdigest() + ".html"
+                out = (OUT_DIR / subset / hex_name).resolve()
+                out.write_text(html, encoding="utf-8", errors="ignore")
+
+                with open("domains_visited.csv", "a") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([urllib.parse.urlparse(url_variation).netloc])
+
                 if PRINT_URLS:
-                    print("Not English")
-                return None
+                    print("Saved HTML →", out.resolve())
 
-            # 4. save HTML to disk
-            hex_name = hashlib.md5(url_variation.encode()).hexdigest() + ".html"
-            out = (OUT_DIR / subset / hex_name).resolve()
-            out.write_text(html, encoding="utf-8", errors="ignore")
+                return out
 
-            with open("domains_visited.csv", "a") as f:
-                writer = csv.writer(f)
-                writer.writerow([urllib.parse.urlparse(url_variation).netloc])
+            # --- helper ---------------------------------------------------------------
+            def batched(iterable, size):
+                """Yield successive *size*-item lists from *iterable*."""
+                it = iter(iterable)
+                while True:
+                    batch = list(itertools.islice(it, size))
+                    if not batch:
+                        break
+                    yield batch
+            # --------------------------------------------------------------------------
 
-            if PRINT_URLS:
-                print("Saved HTML →", out.resolve())
-            if not PRINT_URLS:
-                print("|", end="")
-            return out
+            url_variations_list = []
+            for url in urls:
+                url_variations = [url, "https://" + urllib.parse.urlparse(url).netloc]
+                url_variations_list.extend(url_variations)
 
-        # --- helper ---------------------------------------------------------------
-        def batched(iterable, size):
-            """Yield successive *size*-item lists from *iterable*."""
-            it = iter(iterable)
-            while True:
-                batch = list(itertools.islice(it, size))
-                if not batch:
-                    break
-                yield batch
-        # --------------------------------------------------------------------------
+            num_samples_saved = 0
+            target_samples = num_samples * len(url_variations_list) // len(urls)  # ≈ num_samples × (# variations per URL)
 
-        url_variations_list = []
-        for url in urls:
-            url_variations = [url, "https://" + urllib.parse.urlparse(url).netloc]
-            url_variations_list.extend(url_variations)
+            lock = threading.Lock()
 
-        num_samples_saved = 0
-        target_samples = num_samples * len(url_variations_list) // len(urls)  # ≈ num_samples × (# variations per URL)
+            for batch in batched(url_variations_list, BATCH_SIZE):
+                # Only *BATCH_SIZE* threads exist at once
+                with concurrent.futures.ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+                    futures = {executor.submit(process_url, url_var): url_var for url_var in batch}
 
-        lock = threading.Lock()
+                    for future in concurrent.futures.as_completed(futures):
+                        result = future.result()
+                        if result:
+                            with lock:
+                                num_samples_saved += 1
 
-        for batch in batched(url_variations_list, BATCH_SIZE):
-            # Only *BATCH_SIZE* threads exist at once
-            with concurrent.futures.ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
-                futures = {executor.submit(process_url, url_var): url_var for url_var in batch}
+                                if num_samples_saved >= target_samples:
+                                    break  # enough samples – stop early
 
-                for future in concurrent.futures.as_completed(futures):
-                    result = future.result()
-                    if result:
-                        with lock:
-                            num_samples_saved += 1
-                            print(num_samples_saved, end=", ")
-
-                            if num_samples_saved >= target_samples:
-                                break  # enough samples – stop early
-
-            if num_samples_saved >= target_samples:
-                break                 # stop submitting further batches
+                if num_samples_saved >= target_samples:
+                    break                 # stop submitting further batches
 
 #The problem with the lock is that the files are run and saved before the lock is checked
 
