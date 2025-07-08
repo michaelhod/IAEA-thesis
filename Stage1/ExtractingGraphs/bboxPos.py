@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from urllib.parse import quote
 
 def get_bbox(html: str, XPaths: list[str]):
     """
@@ -17,16 +18,21 @@ def get_bbox(html: str, XPaths: list[str]):
     opts = Options()
     opts.add_argument("--headless=new")
     driver = webdriver.Chrome(options=opts)
+    
+    driver.get("data:text/html;charset=utf-8," + quote(html))
 
-    driver.get("data:text/html;charset=utf-8," + html)
+    # explicitly wait for the page to load
+    driver.implicitly_wait(10)  # seconds
 
-    bbox = {}
+
+    bboxs = {}
     for xpath in XPaths:
         elem = driver.find_element(By.XPATH, xpath)
+        
         box  = driver.execute_script(
             "const r = arguments[0].getBoundingClientRect();"
             "return {x: r.x, y: r.y, width: r.width, height: r.height};", elem)
-        bbox[xpath] = box
+        bboxs[xpath] = box
 
     driver.quit()
-    return box
+    return bboxs

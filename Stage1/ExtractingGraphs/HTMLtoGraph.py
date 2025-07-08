@@ -1,11 +1,12 @@
 import numpy as np
 import networkx as nx
 from bboxPos import get_bbox
+import json
 from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
 
 TAGSTOIGNORE = ["script", "style", "meta", "link", "noscript", "iframe", "svg", "canvas", "object", "embed"]
-
+ALLTAGS = json.load(open("Stage1/ExtractingGraphs/allTags.json", "r"))
 XPATHS = {} # This will be filled by the xpath function as we parse the HTML
 
 def xpath(tag) -> str:
@@ -43,24 +44,19 @@ def xpath(tag) -> str:
     XPATHS[tag] = "/" + "/".join(parts)  # Store the XPath for this tag
     return XPATHS[tag]  
 
-def html_to_graph(html: str | bytes, *, bbox_attrs: tuple[str, str, str, str] = ("data-x", "data-y", "data-width", "data-height"), text_freq_lookup: dict[str, float] | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Parameters
     ----------
     html
-        Raw HTML string/bytes or a path-like object.
-    bbox_attrs
-        Attribute names that store bounding-box x, y, width, height.
-        Change this if your DOM uses different names.
-    text_freq_lookup
-        {text -> avg occurrences per page across the website}.  Unknown texts get 0.
+        Raw HTML string
 
     Returns
     -------
     A : (N, N) np.ndarray[bool]
         Adjacency (parents <-> children and siblings).
     X : (N, F_node) np.ndarray[float]
-        Node features: one-hot tag | sibling index | text-frequency.
+        Node features: one-hot tag | sibling index.
     E : (N, N, F_edge) np.ndarray[float]
         Edge features: [X_i , X_j , hop_dist , Δx , Δy , Δh , Δw]
     """
@@ -68,57 +64,66 @@ def html_to_graph(html: str | bytes, *, bbox_attrs: tuple[str, str, str, str] = 
     soup = BeautifulSoup(html, "lxml")
 
     # Flatten DOM into a list of element nodes (excluding NavigableStrings)
-    nodes: list[Tag] = [el for el in soup.descendants if isinstance(el, Tag)] #List of every tag (including each tag's children)
+    nodes: dict[Tag, int] = {} # list every node and index it for the adj matrix
+    idx = 0
+    for el in soup.descendants:
+        if isinstance(el, Tag):
+            nodes[el] = idx
+            idx += 1
     N = len(nodes)
 
     #Prime the XPATHS dict
     for node in nodes:
         xpath(node)
+    
+    # Collect bounding boxes
+    bboxs = get_bbox(html, XPaths=list(XPATHS.values()))
 
-    #Create Adj, X, E matrices
+    # sibling indices
+    # sibling_idx: list[int] = [] #What number sibling is each node (indexed the same as nodes)
+    # for n in nodes:
+    #     siblings = [sib for sib in n.parent.children if isinstance(sib, Tag)] if n.parent else []
+    #     sibling_idx.append(siblings.index(n) if siblings else 0)
+
+    # text frequencies
+    # if text_freq_lookup is None:
+    #     text_freq_lookup = defaultdict(float) # Dict of text: freq
+    # text_freq = [text_freq_lookup.get(n.get_text(strip=True), 0.0) for n in nodes] # All index where many children down, the text is exactly the same
+
+    # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
     X = np.zeros((N, 3), dtype=float)  # Node features
     E = np.zeros((N, N, 4), dtype=float)  # Edge features
 
-    # Acquire X features
-    # Collect bounding boxes
-    bbox = get_bbox(html, XPaths=list(XPATHS.values()))
-    
+    for node in nodes:
+        # Connect to parent
+        parent = node.parent
+        if parent:
+            A[nodes[node], nodes[parent]] = 1
 
-    # 2. Collect basic per-node data ------------------------------------------
-    # tag encoding
-    tags = sorted({n.name for n in nodes})
-    tag2idx = {t: i for i, t in enumerate(tags)} #Create tags enum
-    F_tag = len(tags)
+            # add edge feature for parent-child
+            
 
-    # sibling indices
-    sibling_idx: list[int] = [] #What number sibling is each node (indexed the same as nodes)
-    for n in nodes:
-        siblings = [sib for sib in n.parent.children if isinstance(sib, Tag)] if n.parent else []
-        sibling_idx.append(siblings.index(n) if siblings else 0)
+        # Connect to children
+        for child in node.children:
+            A[nodes[node], nodes[child]] = 1
 
-    # text frequencies
-    if text_freq_lookup is None:
-        text_freq_lookup = defaultdict(float) # Dict of text: freq
-    text_freq = [text_freq_lookup.get(n.get_text(strip=True), 0.0) for n in nodes] # All index where many children down, the text is exactly the same
+        # Connect siblings (same parent, direct siblings)
+        siblings = [sib for sib in node.parent.children if isinstance(sib, Tag)] if node.parent else []
+        index = 1
+        for i, sib in enumerate(siblings):
+            if sib != node:
+                A[nodes[node], nodes[sib]] = 1
+            else:
+                index = i + 1
 
-    # bounding boxes (missing values -> 0)
-    x_attr, y_attr, w_attr, h_attr = bbox_attrs
-    coords = np.array(
-        [
-            [
-                float(n.attrs.get(x_attr, 0)),
-                float(n.attrs.get(y_attr, 0)),
-                float(n.attrs.get(w_attr, 0)),
-                float(n.attrs.get(h_attr, 0)),
-            ]
-            for n in nodes
-        ],
-        dtype=float,
-    )  # shape: (N, 4)
-    print(coords)
-    return None
-    # 3. Build adjacency & graph ----------------------------------------------
+        # Add to features
+        X[nodes[node], 0] = ALLTAGS[node.name]  # One-hot tag
+        X[nodes[node], 1] = index # Sibling index (1-based like XPath)
+
+
+
+    return A, X, E
     G = nx.Graph()
 
     for idx, n in enumerate(nodes):
@@ -144,9 +149,9 @@ def html_to_graph(html: str | bytes, *, bbox_attrs: tuple[str, str, str, str] = 
 
     # 4. Assemble node-feature matrix X ---------------------------------------
     # one-hot tag
-    tag_onehot = np.zeros((N, F_tag), dtype=float)
+    tag_onehot = np.zeros((N, len(ALLTAGS)), dtype=float)
     for i, n in enumerate(nodes):
-        tag_onehot[i, tag2idx[n.name]] = 1.0
+        tag_onehot[i, ALLTAGS[n.name]] = 1.0
 
     sibling_idx_arr = np.array(sibling_idx, dtype=float).reshape(N, 1)
     text_freq_arr = np.array(text_freq, dtype=float).reshape(N, 1)
