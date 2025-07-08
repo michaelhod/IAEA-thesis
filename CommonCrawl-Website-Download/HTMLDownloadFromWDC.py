@@ -55,13 +55,14 @@ NUM_SAMPLES = [ # how many web pages to take
     200, # Place
     200  # FAQPage
 ]
+ITERATIONS = 40 # How many times to run the script
 BATCH_SIZE = 400 #Num of html to download at once
 BASE_URL = ("https://data.dws.informatik.uni-mannheim.de/"
              "structureddata/2024-12/quads/classspecific")
 UA = 'cc-schemaxtract/1.0 (JSON-LD & microdata extractor; michaelhodgins@live.co.uk)'
 SEED = None
 MAX_SKIP = 1_000_000 # The max possible number of lines to skip in .gz files
-OUT_DIR = pathlib.Path("./wdc_microdata_html")
+OUT_DIR = pathlib.Path("./data/wdc_microdata_html")
 OUT_DIR.mkdir(exist_ok=True)
 for subset in WDC_Subsets:
     (OUT_DIR / subset).mkdir(exist_ok=True)
@@ -153,7 +154,7 @@ def is_english(html: str) -> bool:
 
 # -------------------------------------------------------------------
 def main():
-    for run in range(40):
+    for run in range(ITERATIONS):
 
         DOMAINS_VISITED = []
         with open("domains_visited.csv", "r") as f:
@@ -166,7 +167,7 @@ def main():
 
         print(f"Domains already visited: {len(DOMAINS_VISITED)}")
 
-        print(f"\nRun {run + 1} of 40")
+        print(f"\nRun {run + 1} of {ITERATIONS}")
         for (subset, num_samples) in zip(WDC_Subsets, NUM_SAMPLES):
             if num_samples <= 0:
                 continue
