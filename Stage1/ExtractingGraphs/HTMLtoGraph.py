@@ -44,20 +44,24 @@ def xpath(tag) -> str:
     XPATHS[tag] = "/" + "/".join(parts)  # Store the XPath for this tag
     return XPATHS[tag]
 
-def EdgeFeatures(edgeStart, edgeEnd, X, bboxs, A=None, hops=None):
-    features = [0]*8
-    features[0] = X[edgeStart, 0]
-    features[1] = X[edgeStart, 1]
-    features[2] = X[edgeEnd, 0]
-    features[3] = X[edgeEnd, 1]
+def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=None, hops=None):
+    features = [0]*(2*len(ALLTAGS)+7)
+
+    # Copy all X features for each node
+    for i in range(len(ALLTAGS)+1):
+        features[i] = X[edgeStart, i]
+    for i in range(len(ALLTAGS)+1):
+        features[i+len(ALLTAGS)+1] = X[edgeStart, i]
+    # Num hops between nodes
     if hops:
-        features[4] = hops
+        features[-5] = hops
     else:
         raise Exception("NOT YET IMPLEMENTED THE HOPS CALCULATION BETWEEN TWO NODES")
-    features[5] = bboxs[edgeEnd]["x"]-bboxs[edgeStart]["x"]
-    features[6] = bboxs[edgeEnd]["y"]-bboxs[edgeStart]["y"]
-    features[7] = bboxs[edgeEnd]["width"]-bboxs[edgeStart]["width"]
-    features[8] = bboxs[edgeEnd]["height"]-bboxs[edgeStart]["height"]
+    # Distances between nodes
+    features[-4] = bboxs[edgeEndXPath]["x"]-bboxs[edgeStartXPath]["x"]
+    features[-3] = bboxs[edgeEndXPath]["y"]-bboxs[edgeStartXPath]["y"]
+    features[-2] = bboxs[edgeEndXPath]["width"]-bboxs[edgeStartXPath]["width"]
+    features[-1] = bboxs[edgeEndXPath]["height"]-bboxs[edgeStartXPath]["height"]
 
     return features
 
@@ -106,18 +110,20 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     # if text_freq_lookup is None:
     #     text_freq_lookup = defaultdict(float) # Dict of text: freq
     # text_freq = [text_freq_lookup.get(n.get_text(strip=True), 0.0) for n in nodes] # All index where many children down, the text is exactly the same
-
+    
     # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
-    X = np.zeros((N, 2), dtype=float)  # Node features
-    E = np.zeros((N, N, 8), dtype=float)  # Edge features
+    X = np.zeros((N, len(ALLTAGS) + 1), dtype=float)  # Node features
+    E = np.zeros((N, N, 2*len(ALLTAGS) + 7), dtype=float)  # Edge features
 
     # Populate Feature matrix, X
     for node in nodes:
-        oneHot = [0]*len(ALLTAGS)
-        oneHot[ALLTAGS[node.name]] = 1
-        X[nodes[node], 0] = oneHot  # One-hot tag
-        X[nodes[node], 1] = index # Sibling index (1-based like XPath)
+        X[nodes[node], ALLTAGS[node.name]] = 1 # One-hot tag
+        if node.parent and node.parent in nodes:
+            siblings = [sib for sib in node.parent.children if isinstance(sib, Tag)]
+            X[nodes[node], -1] = siblings.index(node) + 1 # Sibling index (1-based like XPath)
+        else:
+            X[nodes[node], -1] = 1
 
     # Populate adj matrix, A
     for node in nodes:
@@ -125,16 +131,17 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
         # Connect to parent
         parent = node.parent
-        if parent:
+        if parent and parent in nodes:
             edgeEnd = nodes[parent]
             A[edgeStart, edgeEnd] = 1
-            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, X, bboxs, hops=1)
+            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[parent], X, bboxs, hops=1)
 
         # Connect to children
         for child in node.children:
-            edgeEnd = nodes[child]
-            A[edgeStart, edgeEnd] = 1
-            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, X, bboxs, hops=1)
+            if isinstance(child, Tag):
+                edgeEnd = nodes[child]
+                A[edgeStart, edgeEnd] = 1
+                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[child], X, bboxs, hops=1)
 
         # Connect siblings (same parent, direct siblings)
         siblings = [sib for sib in node.parent.children if isinstance(sib, Tag)] if node.parent else []
@@ -143,7 +150,7 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             edgeEnd = nodes[sib]
             if sib != node:
                 A[edgeStart, edgeEnd] = 1
-                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, X, bboxs, hops=1)
+                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[sib], X, bboxs, hops=1)
             else:
                 index = i + 1
 
@@ -152,7 +159,15 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 html_content = ""
 with open("./Stage1/test.html", "r", encoding="utf-8") as f:
     html_content = f.read()
-output = html_to_graph(html_content)
-# print("Adjacency Matrix:\n", output[0])
-# print("Node Features:\n", output[1])
-# print("Edge features: ", output[2])
+A, X, E = html_to_graph(html_content)
+print("Adjacency Matrix:\n", A.shape)
+print("Node Features:\n", X.shape)
+print("Edge features: ", E.shape)
+
+# Make a nx graph
+import matplotlib.pyplot as plt
+G = nx.from_numpy_array(A)
+position = nx.spring_layout(G)
+fig, ax = plt.subplots(figsize=(12,8))
+nx.draw(G, position, ax)
+plt.show()
