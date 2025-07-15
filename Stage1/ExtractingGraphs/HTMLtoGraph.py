@@ -4,8 +4,7 @@ import json
 from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
 
-TAGSTOIGNORE = ["script", "style", "meta", "link", "noscript", "iframe", "svg", "canvas", "object", "embed"]
-ALLTAGS = json.load(open("Stage1/ExtractingGraphs/allTags.json", "r"))
+TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 XPATHS = {} # This will be filled by the xpath function as we parse the HTML
 
 def xpath(tag) -> str:
@@ -44,13 +43,13 @@ def xpath(tag) -> str:
     return XPATHS[tag]
 
 def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=None, hops=None):
-    features = [0]*(2*len(ALLTAGS)+7)
+    features = [0]*(2*len(TAGSOFINTEREST)+7)
 
     # Copy all X features for each node
-    for i in range(len(ALLTAGS)+1):
+    for i in range(len(TAGSOFINTEREST)+1):
         features[i] = X[edgeStart, i]
-    for i in range(len(ALLTAGS)+1):
-        features[i+len(ALLTAGS)+1] = X[edgeEnd, i]
+    for i in range(len(TAGSOFINTEREST)+1):
+        features[i+len(TAGSOFINTEREST)+1] = X[edgeEnd, i]
     # Num hops between nodes
     if hops:
         features[-5] = hops
@@ -87,7 +86,7 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     nodes: dict[Tag, int] = {} # list every node and index it for the adj matrix
     idx = 0
     for el in soup.descendants:
-        if isinstance(el, Tag):
+        if isinstance(el, Tag) and el.name in TAGSOFINTEREST:
             nodes[el] = idx
             idx += 1
     N = len(nodes)
@@ -112,14 +111,14 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     
     # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
-    X = np.zeros((N, len(ALLTAGS) + 1), dtype=float)  # Node features
-    E = np.zeros((N, N, 2*len(ALLTAGS) + 7), dtype=float)  # Edge features
+    X = np.zeros((N, len(TAGSOFINTEREST) + 1), dtype=float)  # Node features
+    E = np.zeros((N, N, 2*len(TAGSOFINTEREST) + 7), dtype=float)  # Edge features
 
     # Populate Feature matrix, X
     for node in nodes:
-        X[nodes[node], ALLTAGS[node.name]] = 1 # One-hot tag
+        X[nodes[node], TAGSOFINTEREST[node.name]] = 1 # One-hot tag
         if node.parent and node.parent in nodes:
-            siblings = [sib for sib in node.parent.children if isinstance(sib, Tag)]
+            siblings = [sib for sib in node.parent.children if isinstance(sib, Tag) and sib in nodes]
             X[nodes[node], -1] = siblings.index(node) + 1 # Sibling index (1-based like XPath)
         else:
             X[nodes[node], -1] = 1
@@ -137,21 +136,18 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
         # Connect to children
         for child in node.children:
-            if isinstance(child, Tag):
+            if isinstance(child, Tag) and child in nodes:
                 edgeEnd = nodes[child]
                 A[edgeStart, edgeEnd] = 1
                 E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[child], X, bboxs, hops=1)
 
         # Connect siblings (same parent, direct siblings)
-        siblings = [sib for sib in node.parent.children if isinstance(sib, Tag)] if node.parent else []
-        index = 1
+        siblings = [sib for sib in node.parent.children if isinstance(sib, Tag) and sib in nodes] if node.parent else []
         for i, sib in enumerate(siblings):
             edgeEnd = nodes[sib]
             if sib != node:
                 A[edgeStart, edgeEnd] = 1
                 E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[sib], X, bboxs, hops=1)
-            else:
-                index = i + 1
 
     return A, X, E
 
@@ -160,9 +156,9 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 #     html_content = f.read()
 # A, X, E = html_to_graph(html_content)
 # print("Adjacency Matrix:\n", A.shape)
-# np.savetxt("X.csv", X[49:], delimiter=",", fmt="%d")
+# # np.savetxt("X.csv", X[49:], delimiter=",", fmt="%d")
 
-# np.savetxt("E.csv", E[49,:,:], delimiter=",", fmt="%d")
+# # np.savetxt("E1.csv", E[0,:,:], delimiter=",", fmt="%d")
 # print("Node Features:\n", X[49:])
 # print("Edge features: ", E.shape)
 
