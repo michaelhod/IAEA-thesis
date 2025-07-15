@@ -1,5 +1,4 @@
 import numpy as np
-import networkx as nx
 from bboxPos import get_bbox
 import json
 from collections import defaultdict
@@ -51,7 +50,7 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=N
     for i in range(len(ALLTAGS)+1):
         features[i] = X[edgeStart, i]
     for i in range(len(ALLTAGS)+1):
-        features[i+len(ALLTAGS)+1] = X[edgeStart, i]
+        features[i+len(ALLTAGS)+1] = X[edgeEnd, i]
     # Num hops between nodes
     if hops:
         features[-5] = hops
@@ -156,18 +155,22 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     return A, X, E
 
-html_content = ""
-with open("./Stage1/test.html", "r", encoding="utf-8") as f:
-    html_content = f.read()
-A, X, E = html_to_graph(html_content)
-print("Adjacency Matrix:\n", A.shape)
-print("Node Features:\n", X.shape)
-print("Edge features: ", E.shape)
+# html_content = ""
+# with open("./Stage1/test.html", "r", encoding="utf-8") as f:
+#     html_content = f.read()
+# A, X, E = html_to_graph(html_content)
+# print("Adjacency Matrix:\n", A.shape)
+# np.savetxt("X.csv", X[49:], delimiter=",", fmt="%d")
 
-# Make a nx graph
-import matplotlib.pyplot as plt
-G = nx.from_numpy_array(A)
-position = nx.spring_layout(G)
-fig, ax = plt.subplots(figsize=(12,8))
-nx.draw(G, position, ax)
-plt.show()
+# np.savetxt("E.csv", E[49,:,:], delimiter=",", fmt="%d")
+# print("Node Features:\n", X[49:])
+# print("Edge features: ", E.shape)
+
+# # Make a nx graph
+# import networkx as nx
+# import matplotlib.pyplot as plt
+# G = nx.from_numpy_array(A)
+# position = nx.spring_layout(G)
+# fig, ax = plt.subplots(figsize=(12,8))
+# nx.draw(G, position, ax, with_labels=True)
+# plt.show()
