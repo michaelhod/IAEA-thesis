@@ -42,7 +42,24 @@ def xpath(tag) -> str:
 
     parts.reverse()
     XPATHS[tag] = "/" + "/".join(parts)  # Store the XPath for this tag
-    return XPATHS[tag]  
+    return XPATHS[tag]
+
+def EdgeFeatures(edgeStart, edgeEnd, X, bboxs, A=None, hops=None):
+    features = [0]*8
+    features[0] = X[edgeStart, 0]
+    features[1] = X[edgeStart, 1]
+    features[2] = X[edgeEnd, 0]
+    features[3] = X[edgeEnd, 1]
+    if hops:
+        features[4] = hops
+    else:
+        raise Exception("NOT YET IMPLEMENTED THE HOPS CALCULATION BETWEEN TWO NODES")
+    features[5] = bboxs[edgeEnd]["x"]-bboxs[edgeStart]["x"]
+    features[6] = bboxs[edgeEnd]["y"]-bboxs[edgeStart]["y"]
+    features[7] = bboxs[edgeEnd]["width"]-bboxs[edgeStart]["width"]
+    features[8] = bboxs[edgeEnd]["height"]-bboxs[edgeStart]["height"]
+
+    return features
 
 def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -71,7 +88,7 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             nodes[el] = idx
             idx += 1
     N = len(nodes)
-
+    
     #Prime the XPATHS dict
     for node in nodes:
         xpath(node)
@@ -92,93 +109,43 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
-    X = np.zeros((N, 3), dtype=float)  # Node features
-    E = np.zeros((N, N, 4), dtype=float)  # Edge features
+    X = np.zeros((N, 2), dtype=float)  # Node features
+    E = np.zeros((N, N, 8), dtype=float)  # Edge features
 
+    # Populate Feature matrix, X
     for node in nodes:
+        oneHot = [0]*len(ALLTAGS)
+        oneHot[ALLTAGS[node.name]] = 1
+        X[nodes[node], 0] = oneHot  # One-hot tag
+        X[nodes[node], 1] = index # Sibling index (1-based like XPath)
+
+    # Populate adj matrix, A
+    for node in nodes:
+        edgeStart = nodes[node]
+
         # Connect to parent
         parent = node.parent
         if parent:
-            A[nodes[node], nodes[parent]] = 1
-
-            # add edge feature for parent-child
-            
+            edgeEnd = nodes[parent]
+            A[edgeStart, edgeEnd] = 1
+            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, X, bboxs, hops=1)
 
         # Connect to children
         for child in node.children:
-            A[nodes[node], nodes[child]] = 1
+            edgeEnd = nodes[child]
+            A[edgeStart, edgeEnd] = 1
+            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, X, bboxs, hops=1)
 
         # Connect siblings (same parent, direct siblings)
         siblings = [sib for sib in node.parent.children if isinstance(sib, Tag)] if node.parent else []
         index = 1
         for i, sib in enumerate(siblings):
+            edgeEnd = nodes[sib]
             if sib != node:
-                A[nodes[node], nodes[sib]] = 1
+                A[edgeStart, edgeEnd] = 1
+                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, X, bboxs, hops=1)
             else:
                 index = i + 1
-
-        # Add to features
-        X[nodes[node], 0] = ALLTAGS[node.name]  # One-hot tag
-        X[nodes[node], 1] = index # Sibling index (1-based like XPath)
-
-
-
-    return A, X, E
-    G = nx.Graph()
-
-    for idx, n in enumerate(nodes):
-        G.add_node(idx)
-
-    # parent/child edges
-    for child_idx, child in enumerate(nodes):
-        parent = child.parent
-        if isinstance(parent, Tag):
-            parent_idx = nodes.index(parent)
-            G.add_edge(parent_idx, child_idx, hop=1)
-
-    # sibling edges (same parent, direct siblings)
-    for n in soup.find_all(True):
-        siblings = [sib for sib in n.children if isinstance(sib, Tag)]
-        for i, sib_i in enumerate(siblings):
-            idx_i = nodes.index(sib_i)
-            for sib_j in siblings[i + 1 :]:
-                idx_j = nodes.index(sib_j)
-                G.add_edge(idx_i, idx_j, hop=2)  # shortest path length between siblings
-
-    A = nx.to_numpy_array(G, dtype=bool)
-
-    # 4. Assemble node-feature matrix X ---------------------------------------
-    # one-hot tag
-    tag_onehot = np.zeros((N, len(ALLTAGS)), dtype=float)
-    for i, n in enumerate(nodes):
-        tag_onehot[i, ALLTAGS[n.name]] = 1.0
-
-    sibling_idx_arr = np.array(sibling_idx, dtype=float).reshape(N, 1)
-    text_freq_arr = np.array(text_freq, dtype=float).reshape(N, 1)
-
-    X = np.hstack([tag_onehot, sibling_idx_arr, text_freq_arr])  # (N, F_node)
-    F_node = X.shape[1]
-
-    # 5. Edge-feature tensor ---------------------------------------------------
-    F_edge = 2 * F_node + 5
-    E = np.zeros((N, N, F_edge), dtype=float)
-    # Pre-compute all-pairs shortest-path hop counts (small graph, so O(N^3) ok)
-    hop_dists = dict(nx.all_pairs_shortest_path_length(G))
-
-    for i, j in G.edges():
-        # node features of K and V
-        feat_i, feat_j = X[i], X[j]
-        hop = hop_dists[i][j]
-
-        # Δ coords
-        dx = coords[j, 0] - coords[i, 0]
-        dy = coords[j, 1] - coords[i, 1]
-        dw = coords[j, 2] - coords[i, 2]
-        dh = coords[j, 3] - coords[i, 3]
-
-        edge_feat = np.concatenate([feat_i, feat_j, [hop, dx, dy, dh, dw]])
-        E[i, j] = edge_feat
-        E[j, i] = edge_feat  # symmetric
 
     return A, X, E
 
