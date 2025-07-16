@@ -2,6 +2,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from urllib.parse import quote
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def get_bbox(html: str, XPaths: list[str]):
     """
@@ -18,12 +20,14 @@ def get_bbox(html: str, XPaths: list[str]):
     opts = Options()
     opts.add_argument("--headless=new")
     driver = webdriver.Chrome(options=opts)
-    
+    driver.execute_cdp_cmd('Emulation.setScriptExecutionDisabled', {'value': True})
+
     driver.get("data:text/html;charset=utf-8," + quote(html))
 
     # explicitly wait for the page to load
     driver.implicitly_wait(10)  # seconds
-
+    wait = WebDriverWait(driver, 5)   # up to 5 s
+    wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
 
     bboxs = {}
     for xpath in XPaths:

@@ -32,9 +32,9 @@ def process_file(filepath: Path) -> str | None:
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    html_files = list(SRC_FOLDER.rglob("*.html"))
+    html_files = list(SRC_FOLDER.rglob("*.htm"))
 
-    with ProcessPoolExecutor() as pool:
+    with ProcessPoolExecutor(max_workers=8) as pool:
         for saved_to in pool.map(process_file, html_files):
             if saved_to and np.random.random() < 20/20000:
-                print("|", end="")
+                pass

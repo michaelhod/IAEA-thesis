@@ -80,13 +80,13 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         Edge features: [X_i , X_j , hop_dist , Δx , Δy , Δh , Δw]
     """
     # 1. Parse -----------------------------------------------------------------
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html5lib")
 
     # Flatten DOM into a list of element nodes (excluding NavigableStrings)
     nodes: dict[Tag, int] = {} # list every node and index it for the adj matrix
     idx = 0
     for el in soup.descendants:
-        if isinstance(el, Tag) and el.name in TAGSOFINTEREST:
+        if isinstance(el, Tag) and el.name in TAGSOFINTEREST and el not in nodes:
             nodes[el] = idx
             idx += 1
     N = len(nodes)
@@ -152,7 +152,7 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return A, X, E
 
 # html_content = ""
-# with open("./Stage1/test.html", "r", encoding="utf-8") as f:
+# with open("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0000.htm", "r", encoding="utf-8") as f:
 #     html_content = f.read()
 # A, X, E = html_to_graph(html_content)
 # print("Adjacency Matrix:\n", A.shape)
