@@ -20,7 +20,6 @@ def get_bbox(html: str, XPaths: list[str]):
     opts = Options()
     opts.add_argument("--headless=new")
     driver = webdriver.Chrome(options=opts)
-    driver.execute_cdp_cmd('Emulation.setScriptExecutionDisabled', {'value': True})
 
     driver.get("data:text/html;charset=utf-8," + quote(html))
 
