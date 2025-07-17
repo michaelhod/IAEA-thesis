@@ -5,9 +5,8 @@ from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
-XPATHS = {} # This will be filled by the xpath function as we parse the HTML
 
-def xpath(tag) -> str:
+def xpath(tag, xpaths) -> str:
     """
     Build an XPath that uniquely identifies *bs4_element*
     inside the parsed document.
@@ -18,9 +17,9 @@ def xpath(tag) -> str:
     parts = []
     el = tag
     while el and el.name:                 # stop at the BeautifulSoup object
-        if XPATHS.get(el) is not None:
+        if xpaths.get(el) is not None:
             # If this element already has an XPath, return it
-            parts.append(XPATHS[el][1:]) # Skip the first "/" as we will add it later
+            parts.append(xpaths[el][1:]) # Skip the first "/" as we will add it later
             break
 
         parent = el.parent
@@ -39,8 +38,8 @@ def xpath(tag) -> str:
         el = parent
 
     parts.reverse()
-    XPATHS[tag] = "/" + "/".join(parts)  # Store the XPath for this tag
-    return XPATHS[tag]
+    xpaths[tag] = "/" + "/".join(parts)  # Store the XPath for this tag
+    return xpaths
 
 def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=None, hops=None):
     features = [0]*(2*len(TAGSOFINTEREST)+7)
@@ -86,17 +85,20 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     nodes: dict[Tag, int] = {} # list every node and index it for the adj matrix
     idx = 0
     for el in soup.descendants:
+        if el.find_parent("noscript") is not None:
+            continue
         if isinstance(el, Tag) and el.name in TAGSOFINTEREST and el not in nodes:
             nodes[el] = idx
             idx += 1
     N = len(nodes)
     
     #Prime the XPATHS dict
+    XPaths = {}
     for node in nodes:
-        xpath(node)
+        XPaths = xpath(node, XPaths)
     
     # Collect bounding boxes
-    bboxs = get_bbox(html, XPaths=list(XPATHS.values()))
+    bboxs = get_bbox(html, XPaths=list(XPaths.values()))
 
     # sibling indices
     # sibling_idx: list[int] = [] #What number sibling is each node (indexed the same as nodes)
@@ -132,14 +134,14 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if parent and parent in nodes:
             edgeEnd = nodes[parent]
             A[edgeStart, edgeEnd] = 1
-            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[parent], X, bboxs, hops=1)
+            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[parent], X, bboxs, hops=1)
 
         # Connect to children
         for child in node.children:
             if isinstance(child, Tag) and child in nodes:
                 edgeEnd = nodes[child]
                 A[edgeStart, edgeEnd] = 1
-                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[child], X, bboxs, hops=1)
+                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[child], X, bboxs, hops=1)
 
         # Connect siblings (same parent, direct siblings)
         siblings = [sib for sib in node.parent.children if isinstance(sib, Tag) and sib in nodes] if node.parent else []
@@ -147,12 +149,12 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             edgeEnd = nodes[sib]
             if sib != node:
                 A[edgeStart, edgeEnd] = 1
-                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPATHS[node], XPATHS[sib], X, bboxs, hops=1)
+                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[sib], X, bboxs, hops=1)
 
     return A, X, E
 
 # html_content = ""
-# with open("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0000.htm", "r", encoding="utf-8") as f:
+# with open("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0011.htm", "r", encoding="utf-8") as f:
 #     html_content = f.read()
 # A, X, E = html_to_graph(html_content)
 # print("Adjacency Matrix:\n", A.shape)
