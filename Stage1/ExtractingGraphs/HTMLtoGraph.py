@@ -62,7 +62,7 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=N
 
     return features
 
-def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Parameters
     ----------
@@ -98,7 +98,7 @@ def html_to_graph(html: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         XPaths = xpath(node, XPaths)
     
     # Collect bounding boxes
-    bboxs = get_bbox(html, XPaths=list(XPaths.values()))
+    bboxs = get_bbox(html, XPaths=list(XPaths.values()), driver=driver)
 
     # sibling indices
     # sibling_idx: list[int] = [] #What number sibling is each node (indexed the same as nodes)
