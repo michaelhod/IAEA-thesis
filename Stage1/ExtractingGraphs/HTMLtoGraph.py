@@ -114,7 +114,8 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
     # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
     X = np.zeros((N, len(TAGSOFINTEREST) + 1), dtype=float)  # Node features
-    E = np.zeros((N, N, 2*len(TAGSOFINTEREST) + 7), dtype=float)  # Edge features
+    edge_list = []
+    edge_features = []
 
     # Populate Feature matrix, X
     for node in nodes:
@@ -134,14 +135,17 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
         if parent and parent in nodes:
             edgeEnd = nodes[parent]
             A[edgeStart, edgeEnd] = 1
-            E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[parent], X, bboxs, hops=1)
+            edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
+            edge_features.append(EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[parent], X, bboxs, hops=1))
+
 
         # Connect to children
         for child in node.children:
             if isinstance(child, Tag) and child in nodes:
                 edgeEnd = nodes[child]
                 A[edgeStart, edgeEnd] = 1
-                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[child], X, bboxs, hops=1)
+                edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
+                edge_features.append(EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[child], X, bboxs, hops=1))
 
         # Connect siblings (same parent, direct siblings)
         siblings = [sib for sib in node.parent.children if isinstance(sib, Tag) and sib in nodes] if node.parent else []
@@ -149,19 +153,26 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
             edgeEnd = nodes[sib]
             if sib != node:
                 A[edgeStart, edgeEnd] = 1
-                E[edgeStart, edgeEnd] = EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[sib], X, bboxs, hops=1)
+                edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
+                edge_features.append(EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[sib], X, bboxs, hops=1))
 
-    return A, X, E
+    edge_index = np.array(edge_list)
+    E = np.array(edge_features)
 
+    return A, X, E, edge_index
+
+
+# from seleniumDriver import get_Driver, driver_init
 # html_content = ""
-# with open("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0011.htm", "r", encoding="utf-8") as f:
+# with open("./Stage1/test.html", "r", encoding="utf-8") as f:
 #     html_content = f.read()
-# A, X, E = html_to_graph(html_content)
+# driver_init()
+# A, X, E, edge_index = html_to_graph(html_content, get_Driver())
 # print("Adjacency Matrix:\n", A.shape)
-# # np.savetxt("X.csv", X[49:], delimiter=",", fmt="%d")
+# np.savetxt("X.csv", X, delimiter=",", fmt="%d")
 
 # # np.savetxt("E1.csv", E[0,:,:], delimiter=",", fmt="%d")
-# print("Node Features:\n", X[49:])
+# #print("Node Features:\n", X[49:])
 # print("Edge features: ", E.shape)
 
 # # Make a nx graph

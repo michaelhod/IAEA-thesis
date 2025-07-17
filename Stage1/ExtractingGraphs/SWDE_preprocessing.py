@@ -14,7 +14,7 @@ OUT_ROOT.mkdir(parents=True, exist_ok=True)
 def process_file(filepath: Path) -> str | None:
     try:
         html = filepath.read_text(encoding="utf-8")
-        A, X, E = html_to_graph(html, get_Driver())
+        A, X, E, edge_index = html_to_graph(html, get_Driver())
 
         # build a parallel directory structure under OUT_ROOT
         rel   = filepath.relative_to(SRC_FOLDER)
@@ -22,9 +22,14 @@ def process_file(filepath: Path) -> str | None:
         out_dir.mkdir(parents=True, exist_ok=True)
         
         # save arrays
-        np.save(out_dir / "A.npy", A)
-        np.save(out_dir / "X.npy", X)
-        np.save(out_dir / "E.npy", E)
+        A = sparse.csr_matrix(A)             # convert once
+        X = sparse.csr_matrix(X)
+        E = sparse.csr_matrix(E)
+
+        sparse.save_npz(out_dir / "A.npz", A, compressed=True)
+        sparse.save_npz(out_dir / "X.npz", X, compressed=True)
+        sparse.save_npz(out_dir / "E.npz", E, compressed=True)
+        np.save(out_dir / "edge_index.npy", edge_index)
 
         return str(out_dir)
 
