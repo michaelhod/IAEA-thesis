@@ -5,6 +5,7 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from seleniumDriver import driver_init, get_Driver
 from scipy import sparse
+import subprocess
 
 # ── paths ───────────────────────────────────────────────────────────────────────
 SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie")
@@ -45,17 +46,36 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
     except Exception as e:
         print(f"{filepath}: {e}")
+        if "Read timed out" in str(e):
+            return "TIMEOUT"
         return None
+
+def run(cmd):
+    completed = subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+    return completed
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
         html_files = list(src.rglob("*.htm"))
-        batchsize = 2000
+#        if src == SRC_FOLDER1:
+#            html_files = html_files[6000:]
+        batchsize = 500
+        workers = 4
+        MAXTIMEOUT = 2
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
-            with ProcessPoolExecutor(max_workers=4, initializer=driver_init) as pool:
+            timeout_count = 0
+            with ProcessPoolExecutor(max_workers=workers, initializer=driver_init) as pool:
                 for saved_to in pool.map(process_file, batch, repeat(src, len(batch)), repeat(out, len(batch)), chunksize=1):
-                    if saved_to:
+                    if saved_to == "TIMEOUT":
+                        timeout_count += 1
+                    elif saved_to:
                         print(saved_to)
+                    if timeout_count >= MAXTIMEOUT:
+                        print("Too many timeouts, restarting pool and Chrome processes...")
+                        pool.shutdown(wait=False, cancel_futures=True)
+                        break
+            #run("taskkill /f /IM \"chrome.exe\" /T")
             print("Restarting Selenium drivers...")
+

@@ -21,6 +21,7 @@ def driver_init():
     opts.add_argument("--disable-application-cache")
     opts.add_argument("--media-cache-size=0")
     DRIVER = webdriver.Chrome(options=opts)
+    DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
 
     # tidy-up callbacks (run when the **worker process** exits)
     atexit.register(DRIVER.quit)
