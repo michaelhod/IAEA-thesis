@@ -56,8 +56,8 @@ if __name__ == "__main__":
     for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
         html_files = list(src.rglob("*.htm"))
 #        if src == SRC_FOLDER1:
-#            html_files = html_files[6000:]
-        batchsize = 500
+#            html_files = html_files[7000:]
+        batchsize = 200000
         workers = 4
         MAXTIMEOUT = 1
         for i in range(0, len(html_files), batchsize):
