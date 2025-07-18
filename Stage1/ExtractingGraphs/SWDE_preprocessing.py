@@ -1,20 +1,27 @@
 from HTMLtoGraph import html_to_graph
 from pathlib import Path
+from itertools import repeat
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from seleniumDriver import driver_init, get_Driver
 from scipy import sparse
 
 # ── paths ───────────────────────────────────────────────────────────────────────
-SRC_FOLDER = Path("./data/swde/sourceCode/sourceCode/movie")
-OUT_ROOT   = Path("./data/swde_HTMLgraphs/movie")
-OUT_ROOT.mkdir(parents=True, exist_ok=True)
+SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie")
+SRC_FOLDER2 = Path("./data/swde/sourceCode/sourceCode/nbaplayer")
+SRC_FOLDER3 = Path("./data/swde/sourceCode/sourceCode/university")
+OUT_ROOT1   = Path("./data/swde_HTMLgraphs/movie")
+OUT_ROOT2   = Path("./data/swde_HTMLgraphs/nbaplayer")
+OUT_ROOT3   = Path("./data/swde_HTMLgraphs/university")
+OUT_ROOT1.mkdir(parents=True, exist_ok=True)
+OUT_ROOT2.mkdir(parents=True, exist_ok=True)
+OUT_ROOT3.mkdir(parents=True, exist_ok=True)
 
 # ── worker ──────────────────────────────────────────────────────────────────────
-def process_file(filepath: Path) -> str | None:
+def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     # build a parallel directory structure under OUT_ROOT
-    rel   = filepath.relative_to(SRC_FOLDER)
-    out_dir = (OUT_ROOT / rel).with_suffix("")
+    rel   = filepath.relative_to(SRC)
+    out_dir = (OUT / rel).with_suffix("")
 
     if (out_dir/"A.npz").exists():
         return f"{out_dir} already written"
@@ -42,15 +49,13 @@ def process_file(filepath: Path) -> str | None:
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    html_files = list(SRC_FOLDER.rglob("*.htm"))
-    batchsize = 1999
-    for i in range(0, len(html_files), batchsize):
-        if i+batchsize > len(html_files):
-            batch = html_files[i:len(html_files)]
-        else:
+    for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
+        html_files = list(src.rglob("*.htm"))
+        batchsize = 2000
+        for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
-        with ProcessPoolExecutor(max_workers=4, initializer=driver_init) as pool:
-            for saved_to in pool.map(process_file, batch, chunksize=1):
-                if saved_to:
-                    print(saved_to)
-        print("Restarting Selenium drivers...")
+            with ProcessPoolExecutor(max_workers=4, initializer=driver_init) as pool:
+                for saved_to in pool.map(process_file, batch, repeat(src, len(batch)), repeat(out, len(batch)), chunksize=1):
+                    if saved_to:
+                        print(saved_to)
+            print("Restarting Selenium drivers...")
