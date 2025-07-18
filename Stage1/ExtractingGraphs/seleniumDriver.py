@@ -21,6 +21,7 @@ def driver_init(timoutOccured=True): #This is temporary to get the swde set to w
     opts.add_argument("--disable-application-cache")
     opts.add_argument("--media-cache-size=0")
     DRIVER = webdriver.Chrome(options=opts)
+    DRIVER.command_executor.set_timeout(60)
     if timoutOccured:
         DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
 
