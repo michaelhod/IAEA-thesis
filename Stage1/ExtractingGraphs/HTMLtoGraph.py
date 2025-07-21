@@ -1,5 +1,5 @@
 import numpy as np
-from bboxPos import get_bbox
+from seleniumFunctions import get_bbox, get_selenium_html
 import json
 from collections import defaultdict
 from bs4 import BeautifulSoup, Tag

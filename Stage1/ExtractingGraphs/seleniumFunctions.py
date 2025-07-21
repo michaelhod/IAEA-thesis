@@ -5,7 +5,20 @@ from urllib.parse import quote
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-def get_bbox(html: str, XPaths: list[str], driver):
+def open_selenium(html: str, driver):
+    driver.get("data:text/html;charset=utf-8," + quote(html))
+
+    # explicitly wait for the page to load
+    driver.implicitly_wait(10)  # seconds
+    wait = WebDriverWait(driver, 5)   # up to 5 s
+    wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+
+def get_selenium_html(html: str, driver):
+    open_selenium(html, driver)
+
+    return driver.page_source
+
+def get_bbox(html: str, XPaths: list[str], driver, openselenium=True):
     """
     Gets all bboxes of elements in the XPaths list from the provided HTML content.
     
@@ -16,12 +29,8 @@ def get_bbox(html: str, XPaths: list[str], driver):
     Returns:
         dict: A dictionary of {xpath expression:  {x:, y:, width:, height:}}.
     """
-    driver.get("data:text/html;charset=utf-8," + quote(html))
-
-    # explicitly wait for the page to load
-    driver.implicitly_wait(10)  # seconds
-    wait = WebDriverWait(driver, 5)   # up to 5 s
-    wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+    if openselenium:
+        open_selenium(html, driver)
 
     bboxs = {}
     for xpath in XPaths:
