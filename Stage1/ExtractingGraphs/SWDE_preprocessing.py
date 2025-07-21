@@ -47,37 +47,29 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
     except Exception as e:
         print(f"{filepath}: {e}")
-        if "Read timed out" in str(e):
-            return "TIMEOUT"
         return None
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
+    for src, out in zip([SRC_FOLDER3],[OUT_ROOT3]):
         html_files = list(src.rglob("*.htm"))
-#        if src == SRC_FOLDER1:
-#            html_files = html_files[7000:]
-        batchsize = 200000
-        workers = 4
-        MAXTIMEOUT = 1
+        if src == SRC_FOLDER3:
+            html_files = html_files[13000:]
+        batchsize = 960
+        workers = None
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
-            timeout_count = 0
-            timeout_occured = False
             with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(True,)) as pool:
                 for saved_to in pool.map(process_file, batch, repeat(src, len(batch)), repeat(out, len(batch)), chunksize=1):
-                    if saved_to == "TIMEOUT":
-                        timeout_count += 1
-                    elif saved_to:
+                    if saved_to:
                         print(saved_to)
-                    if timeout_count >= MAXTIMEOUT:
-                        print("Too many timeouts, restarting pool and Chrome processes...")
-                        timeout_occured = True
+                    else:
+                        print("Error, restarting pool and Chrome processes...")
                         pool.shutdown(wait=True, cancel_futures=True)
                         break
             print("Restarting Selenium drivers...")
-            # time.sleep(0.1)
-            # subprocess.run(r'taskkill /f /im chrome.exe /im chromedriver.exe', shell=True)
+            time.sleep(1)
+            subprocess.run(r'taskkill /f /im chrome.exe /im chromedriver.exe', shell=True)
 
             # if timeout_occured:
             #     print("Retrying with offline capabilities")

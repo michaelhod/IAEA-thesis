@@ -16,6 +16,7 @@ def driver_init(timoutOccured=True): #This is temporary to get the swde set to w
 
     opts = webdriver.ChromeOptions()
     opts.add_argument("--headless=new")
+    opts.add_argument("--log-level=3")
     opts.add_argument(f"--user-data-dir={TMP_PROFILE}")
     opts.add_argument("--disk-cache-size=1048576")
     opts.add_argument("--disable-application-cache")
