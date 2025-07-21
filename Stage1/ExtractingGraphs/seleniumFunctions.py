@@ -12,13 +12,12 @@ def open_selenium(html: str, driver):
     driver.implicitly_wait(10)  # seconds
     wait = WebDriverWait(driver, 5)   # up to 5 s
     wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+    
 
-def get_selenium_html(html: str, driver):
-    open_selenium(html, driver)
-
+def get_selenium_html(driver):
     return driver.page_source
 
-def get_bbox(html: str, XPaths: list[str], driver, openselenium=True):
+def get_bbox(XPaths: list[str], driver):
     """
     Gets all bboxes of elements in the XPaths list from the provided HTML content.
     
@@ -29,8 +28,6 @@ def get_bbox(html: str, XPaths: list[str], driver, openselenium=True):
     Returns:
         dict: A dictionary of {xpath expression:  {x:, y:, width:, height:}}.
     """
-    if openselenium:
-        open_selenium(html, driver)
 
     bboxs = {}
     for xpath in XPaths:

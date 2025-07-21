@@ -1,5 +1,5 @@
 import numpy as np
-from seleniumFunctions import get_bbox, get_selenium_html
+from seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
 from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
@@ -98,7 +98,8 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
         XPaths = xpath(node, XPaths)
     
     # Collect bounding boxes
-    bboxs = get_bbox(html, XPaths=list(XPaths.values()), driver=driver)
+    open_selenium(html, driver)
+    bboxs = get_bbox(XPaths=list(XPaths.values()), driver=driver)
 
     # sibling indices
     # sibling_idx: list[int] = [] #What number sibling is each node (indexed the same as nodes)

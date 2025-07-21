@@ -2,7 +2,7 @@
 from selenium import webdriver
 import tempfile, shutil, atexit
 
-def driver_init(timoutOccured=True): #This is temporary to get the swde set to work. Make this more robust in the parallel preprocessing file
+def driver_init(disableJS=True): #This is temporary to get the swde set to work. Make this more robust in the parallel preprocessing file
     """
     Called once per worker by ProcessPoolExecutor(initializer=driver_init).
     Creates a headless Chrome and stores it in the module-level DRIVER.
@@ -16,6 +16,9 @@ def driver_init(timoutOccured=True): #This is temporary to get the swde set to w
 
     opts = webdriver.ChromeOptions()
     opts.add_argument("--headless=new")
+    if disableJS:
+        prefs = {"profile.managed_default_content_settings.javascript": 2}
+        opts.add_experimental_option("prefs", prefs)
     opts.add_argument("--log-level=3")
     opts.add_argument(f"--user-data-dir={TMP_PROFILE}")
     opts.add_argument("--disk-cache-size=1048576")
@@ -23,8 +26,8 @@ def driver_init(timoutOccured=True): #This is temporary to get the swde set to w
     opts.add_argument("--media-cache-size=0")
     DRIVER = webdriver.Chrome(options=opts)
     DRIVER.command_executor.set_timeout(60)
-    if timoutOccured:
-        DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
+    # if timoutOccured:
+    #     DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
 
     # tidy-up callbacks (run when the **worker process** exits)
     atexit.register(DRIVER.quit)
