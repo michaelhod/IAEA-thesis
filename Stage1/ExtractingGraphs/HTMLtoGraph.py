@@ -1,12 +1,15 @@
 import numpy as np
 from seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
-from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
 from pathlib import Path
 from safeHTMLTag import safe_name
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
+
+def saveHTML(filepath, html):
+    with filepath.open("w", encoding="utf-8") as f:
+        f.write(html)
 
 def xpath(tag, xpaths) -> str:
     """
@@ -64,7 +67,7 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=N
 
     return features
 
-def html_to_graph(filepath: Path, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Parameters
     ----------
@@ -81,8 +84,12 @@ def html_to_graph(filepath: Path, driver) -> tuple[np.ndarray, np.ndarray, np.nd
         Edge features: [X_i , X_j , hop_dist , Δx , Δy , Δh , Δw]
     """
     # 1. Parse -----------------------------------------------------------------
-    #html = get_selenium_html(driver=driver)
     html = filepath.read_text(encoding="utf-8")
+    
+    open_selenium(filepath, driver)
+    if OverwriteHTML:
+        html = get_selenium_html(driver=driver)
+
     soup = BeautifulSoup(html, "html5lib")
 
     # Flatten DOM into a list of element nodes (excluding NavigableStrings)
@@ -102,20 +109,8 @@ def html_to_graph(filepath: Path, driver) -> tuple[np.ndarray, np.ndarray, np.nd
         XPaths = xpath(node, XPaths)
     
     # Collect bounding boxes
-    open_selenium(filepath, driver)
     bboxs = get_bbox(XPaths=list(XPaths.values()), driver=driver)
 
-    # sibling indices
-    # sibling_idx: list[int] = [] #What number sibling is each node (indexed the same as nodes)
-    # for n in nodes:
-    #     siblings = [sib for sib in n.parent.children if isinstance(sib, Tag)] if n.parent else []
-    #     sibling_idx.append(siblings.index(n) if siblings else 0)
-
-    # text frequencies
-    # if text_freq_lookup is None:
-    #     text_freq_lookup = defaultdict(float) # Dict of text: freq
-    # text_freq = [text_freq_lookup.get(n.get_text(strip=True), 0.0) for n in nodes] # All index where many children down, the text is exactly the same
-    
     # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
     X = np.zeros((N, len(TAGSOFINTEREST) + 1), dtype=float)  # Node features
@@ -164,11 +159,14 @@ def html_to_graph(filepath: Path, driver) -> tuple[np.ndarray, np.ndarray, np.nd
     edge_index = np.array(edge_list)
     E = np.array(edge_features)
 
+    if OverwriteHTML: #Replace the HTML with what selenium sees
+        saveHTML(filepath, html)
+
     return A, X, E, edge_index
 
 
 # from seleniumDriver import get_Driver, driver_init
-# html_file = Path("./data/swde/sourceCode/sourceCode/university/university/university-princetonreview(615)/0595.htm")
+# html_file = Path("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0455.htm")
 # driver_init()
 # A, X, E, edge_index = html_to_graph(html_file, get_Driver())
 # print("Adjacency Matrix:\n", A.shape)
@@ -178,7 +176,7 @@ def html_to_graph(filepath: Path, driver) -> tuple[np.ndarray, np.ndarray, np.nd
 # #print("Node Features:\n", X[49:])
 # print("Edge features: ", E.shape)
 
-# # Make a nx graph
+# Make a nx graph
 # import networkx as nx
 # import matplotlib.pyplot as plt
 # G = nx.from_numpy_array(A)

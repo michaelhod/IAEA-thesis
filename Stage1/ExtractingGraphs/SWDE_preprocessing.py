@@ -7,6 +7,7 @@ from seleniumDriver import driver_init, get_Driver
 from scipy import sparse
 import subprocess
 import time
+from selenium.common.exceptions import NoSuchElementException
 
 # ── paths ───────────────────────────────────────────────────────────────────────
 SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie")
@@ -30,10 +31,10 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     try:
-        A, X, E, edge_index = html_to_graph(filepath, get_Driver())
+        A, X, E, edge_index = html_to_graph(filepath, get_Driver(), OverwriteHTML=False)
         
         # save arrays
-        A = sparse.csr_matrix(A)             # convert once
+        A = sparse.csr_matrix(A)
         X = sparse.csr_matrix(X)
         E = sparse.csr_matrix(E)
 
@@ -44,6 +45,26 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
         return f"Saved: {str(out_dir)}"
 
+    except NoSuchElementException as e:
+        try:
+            A, X, E, edge_index = html_to_graph(filepath, get_Driver(), OverwriteHTML=True)
+            
+            # save arrays
+            A = sparse.csr_matrix(A)
+            X = sparse.csr_matrix(X)
+            E = sparse.csr_matrix(E)
+
+            sparse.save_npz(out_dir / "A.npz", A, compressed=True)
+            sparse.save_npz(out_dir / "X.npz", X, compressed=True)
+            sparse.save_npz(out_dir / "E.npz", E, compressed=True)
+            np.save(out_dir / "edge_index.npy", edge_index)
+
+            return f"Saved: {str(out_dir)}. Overwrote {filepath}"
+        
+        except Exception as e:
+            print(f"{filepath}: {e}")
+            return None
+
     except Exception as e:
         print(f"{filepath}: {e}")
         return None
@@ -52,9 +73,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 if __name__ == "__main__":
     for src, out in zip([SRC_FOLDER3, SRC_FOLDER1, SRC_FOLDER2],[OUT_ROOT3, OUT_ROOT1, OUT_ROOT2]):
         html_files = list(src.rglob("*.htm"))
-        if src == SRC_FOLDER3:
-            html_files = html_files[13600:]
-        batchsize = 480
+        batchsize = len(html_files)
         workers = None
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
@@ -69,20 +88,3 @@ if __name__ == "__main__":
             print("Restarting Selenium drivers...")
             time.sleep(1)
             subprocess.run(r'taskkill /f /im chrome.exe /im chromedriver.exe', shell=True)
-
-            # if timeout_occured:
-            #     print("Retrying with offline capabilities")
-            #     with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(timeout_occured,)) as pool:
-            #         for saved_to in pool.map(process_file, batch, repeat(src, len(batch)), repeat(out, len(batch)), chunksize=1):
-            #             if saved_to == "TIMEOUT":
-            #                 timeout_count += 1
-            #             elif saved_to:
-            #                 print(saved_to)
-            #             if timeout_count >= MAXTIMEOUT:
-            #                 print("Too many timeouts, restarting pool and Chrome processes...")
-            #                 timeout_occured = True
-            #                 pool.shutdown(wait=False, cancel_futures=True)
-            #                 break
-            #     #run("taskkill /f /IM \"chrome.exe\" /T")
-            #     print("Restarting Selenium drivers...")
-
