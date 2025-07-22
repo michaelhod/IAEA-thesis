@@ -4,9 +4,12 @@ from selenium.webdriver.common.by import By
 from urllib.parse import quote
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from pathlib import Path
 
-def open_selenium(html: str, driver):
-    driver.get("data:text/html;charset=utf-8," + quote(html))
+def open_selenium(filepath: str, driver):
+    local_file = Path(filepath).resolve()
+    url = local_file.as_uri()
+    driver.get(url)
 
     # explicitly wait for the page to load
     driver.implicitly_wait(10)  # seconds

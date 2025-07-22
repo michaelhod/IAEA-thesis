@@ -3,6 +3,8 @@ from seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
 from collections import defaultdict
 from bs4 import BeautifulSoup, Tag
+from pathlib import Path
+from safeHTMLTag import safe_name
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 
@@ -29,11 +31,11 @@ def xpath(tag, xpaths) -> str:
 
             if len(same_tag_sibs) == 1:
                 # unique → no index
-                parts.append(el.name)
+                parts.append(safe_name(el.name))
             else:
                 # add 1-based position
                 idx = same_tag_sibs.index(el) + 1
-                parts.append(f"{el.name}[{idx}]")
+                parts.append(f"{safe_name(el.name)}[{idx}]")
 
         el = parent
 
@@ -62,7 +64,7 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=N
 
     return features
 
-def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def html_to_graph(filepath: Path, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Parameters
     ----------
@@ -79,6 +81,8 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
         Edge features: [X_i , X_j , hop_dist , Δx , Δy , Δh , Δw]
     """
     # 1. Parse -----------------------------------------------------------------
+    #html = get_selenium_html(driver=driver)
+    html = filepath.read_text(encoding="utf-8")
     soup = BeautifulSoup(html, "html5lib")
 
     # Flatten DOM into a list of element nodes (excluding NavigableStrings)
@@ -98,7 +102,7 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
         XPaths = xpath(node, XPaths)
     
     # Collect bounding boxes
-    open_selenium(html, driver)
+    open_selenium(filepath, driver)
     bboxs = get_bbox(XPaths=list(XPaths.values()), driver=driver)
 
     # sibling indices
@@ -164,11 +168,9 @@ def html_to_graph(html: str, driver) -> tuple[np.ndarray, np.ndarray, np.ndarray
 
 
 # from seleniumDriver import get_Driver, driver_init
-# html_content = ""
-# with open("./Stage1/test.html", "r", encoding="utf-8") as f:
-#     html_content = f.read()
+# html_file = Path("./data/swde/sourceCode/sourceCode/university/university/university-princetonreview(615)/0595.htm")
 # driver_init()
-# A, X, E, edge_index = html_to_graph(html_content, get_Driver())
+# A, X, E, edge_index = html_to_graph(html_file, get_Driver())
 # print("Adjacency Matrix:\n", A.shape)
 # np.savetxt("X.csv", X, delimiter=",", fmt="%d")
 

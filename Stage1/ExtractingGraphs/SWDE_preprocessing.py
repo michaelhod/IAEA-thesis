@@ -30,8 +30,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     try:
-        html = filepath.read_text(encoding="utf-8")
-        A, X, E, edge_index = html_to_graph(html, get_Driver())
+        A, X, E, edge_index = html_to_graph(filepath, get_Driver())
         
         # save arrays
         A = sparse.csr_matrix(A)             # convert once
@@ -51,11 +50,11 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    for src, out in zip([SRC_FOLDER3],[OUT_ROOT3]):
+    for src, out in zip([SRC_FOLDER3, SRC_FOLDER1, SRC_FOLDER2],[OUT_ROOT3, OUT_ROOT1, OUT_ROOT2]):
         html_files = list(src.rglob("*.htm"))
         if src == SRC_FOLDER3:
-            html_files = html_files[13000:]
-        batchsize = 960
+            html_files = html_files[13600:]
+        batchsize = 480
         workers = None
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]

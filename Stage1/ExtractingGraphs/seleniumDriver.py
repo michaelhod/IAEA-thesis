@@ -26,8 +26,8 @@ def driver_init(disableJS=True): #This is temporary to get the swde set to work.
     opts.add_argument("--media-cache-size=0")
     DRIVER = webdriver.Chrome(options=opts)
     DRIVER.command_executor.set_timeout(60)
-    # if timoutOccured:
-    #     DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
+    if disableJS:
+        DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
 
     # tidy-up callbacks (run when the **worker process** exits)
     atexit.register(DRIVER.quit)
