@@ -50,32 +50,35 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
         return f"Saved: {str(out_dir)}"
 
-    except NoSuchElementException as e:
-        print("Retrying")
-        try:
-            A, X, E, edge_index = html_to_graph(filepath, get_Driver(), OverwriteHTML=True)
+    # except NoSuchElementException as e:
+    #     print("Retrying")
+    #     try:
+    #         A, X, E, edge_index = html_to_graph(filepath, get_Driver(), OverwriteHTML=True)
             
-            with open('./data/overwritten.csv', 'a') as f:
-                writer = csv.writer(f)
-                writer.writerow(filepath)
+    #         with open('./data/overwritten.csv', 'a') as f:
+    #             writer = csv.writer(f)
+    #             writer.writerow(filepath)
 
-            # save arrays
-            A = sparse.csr_matrix(A)
-            X = sparse.csr_matrix(X)
-            E = sparse.csr_matrix(E)
+    #         # save arrays
+    #         A = sparse.csr_matrix(A)
+    #         X = sparse.csr_matrix(X)
+    #         E = sparse.csr_matrix(E)
 
-            sparse.save_npz(out_dir / "A.npz", A, compressed=True)
-            sparse.save_npz(out_dir / "X.npz", X, compressed=True)
-            sparse.save_npz(out_dir / "E.npz", E, compressed=True)
-            np.save(out_dir / "edge_index.npy", edge_index)
+    #         sparse.save_npz(out_dir / "A.npz", A, compressed=True)
+    #         sparse.save_npz(out_dir / "X.npz", X, compressed=True)
+    #         sparse.save_npz(out_dir / "E.npz", E, compressed=True)
+    #         np.save(out_dir / "edge_index.npy", edge_index)
 
-            return f"Saved: {str(out_dir)}"
+    #         return f"Saved: {str(out_dir)}"
         
-        except Exception as e:
-            print(f"{filepath.absolute().resolve()}: {e}")
-            return None
+    #     except Exception as e:
+    #         print(f"{filepath.absolute().resolve()}: {e}")
+    #         return None
 
     except Exception as e:
+        with open('./data/skipped.csv', 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(filepath)
         print(f"{filepath.absolute().resolve()}: {e}")
         return None
 
