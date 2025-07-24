@@ -161,13 +161,15 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
 
     if OverwriteHTML: #Replace the HTML with what selenium sees
         saveHTML(filepath, html)
+        print(f"Overwrote {filepath}")
 
     return A, X, E, edge_index
 
 
-# from seleniumDriver import get_Driver, driver_init
-# html_file = Path("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0455.htm")
-# driver_init()
+# from seleniumDriver import get_Driver, driver_init, restart_Driver
+# html_file = Path("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0000.htm")
+# driver_init(True)
+# restart_Driver(True)
 # A, X, E, edge_index = html_to_graph(html_file, get_Driver())
 # print("Adjacency Matrix:\n", A.shape)
 # np.savetxt("X.csv", X, delimiter=",", fmt="%d")
@@ -176,7 +178,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
 # #print("Node Features:\n", X[49:])
 # print("Edge features: ", E.shape)
 
-# Make a nx graph
+# # Make a nx graph
 # import networkx as nx
 # import matplotlib.pyplot as plt
 # G = nx.from_numpy_array(A)

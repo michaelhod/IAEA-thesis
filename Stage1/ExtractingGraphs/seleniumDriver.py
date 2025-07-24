@@ -8,8 +8,8 @@ def driver_init(disableJS=True): #This is temporary to get the swde set to work.
     Creates a headless Chrome and stores it in the module-level DRIVER.
     """
     global DRIVER, TMP_PROFILE
-    DRIVER = None
-    if DRIVER is not None:          # already initialised in this process
+    
+    if 'DRIVER' in globals() and DRIVER is not None:
         return
 
     TMP_PROFILE = tempfile.mkdtemp(prefix="ch_")
@@ -37,3 +37,10 @@ def get_Driver():
     if DRIVER is None:
         raise RuntimeError("driver_init has not run in this process")
     return DRIVER
+
+def restart_Driver(disableJS=True):
+    global DRIVER
+    
+    DRIVER.quit()
+    DRIVER = None
+    driver_init(disableJS=disableJS)
