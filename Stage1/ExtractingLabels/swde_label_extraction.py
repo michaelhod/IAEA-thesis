@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
 import json
 from pathlib import Path
 from typing import Dict
@@ -23,7 +25,6 @@ def load_html_as_tree(path: str) -> etree._ElementTree:
     parser = etree.HTMLParser(huge_tree=True)
     tree = html.parse(path, parser)
     _prune_unwanted(tree)
-    _verify_A_size(len(tree), path)
     return tree
 
 def load_json(path: str):
@@ -193,9 +194,11 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
-def label_extraction(htmlFile: Path, jsonContent) -> None:
+def label_extraction(htmlFile: Path, jsonContent, htmlFileApath) -> None:
 
     tree = load_html_as_tree(htmlFile)
+    if not _verify_A_size(sum(1 for _ in tree.iter()), htmlFileApath):
+        raise Exception("The length of the tree does not match the length of the Adj matrix")
     htmlName = htmlFile.name
 
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
@@ -205,11 +208,16 @@ def label_extraction(htmlFile: Path, jsonContent) -> None:
 def labels_to_npz(labels, size):
     pass
 
+ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
+ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
+TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
+JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
 
-jsonContent = load_json("./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json")
+jsonContent = load_json(JSONFILE)
 
-htmlFolder = Path("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)")
+htmlFolder = ANCHORHTML / TARGETFOLDER
 html_files = list(htmlFolder.rglob("*.htm"))
+htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
 
-labels_to_npz(label_extraction(html_files[0], jsonContent))
+print(label_extraction(html_files[0], jsonContent, htmlAPath))
 
