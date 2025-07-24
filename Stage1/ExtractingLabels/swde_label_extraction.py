@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict
 from lxml import etree, html
 import collections
+from Stage1.ExtractingGraphs.verifyGraphSize import _verify_A_size
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 ALLOWED_TAGS = set(TAGSOFINTEREST.keys())
@@ -22,6 +23,7 @@ def load_html_as_tree(path: str) -> etree._ElementTree:
     parser = etree.HTMLParser(huge_tree=True)
     tree = html.parse(path, parser)
     _prune_unwanted(tree)
+    _verify_A_size(len(tree), path)
     return tree
 
 def load_json(path: str):
