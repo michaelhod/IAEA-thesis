@@ -15,9 +15,9 @@ import csv
 SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie")
 SRC_FOLDER2 = Path("./data/swde/sourceCode/sourceCode/nbaplayer")
 SRC_FOLDER3 = Path("./data/swde/sourceCode/sourceCode/university")
-OUT_ROOT1   = Path("./data/swde_HTMLgraphs/movie")
-OUT_ROOT2   = Path("./data/swde_HTMLgraphs/nbaplayer")
-OUT_ROOT3   = Path("./data/swde_HTMLgraphs/university")
+OUT_ROOT1   = Path("./data/swde_HTMLgraphs_new/movie")
+OUT_ROOT2   = Path("./data/swde_HTMLgraphs_new/nbaplayer")
+OUT_ROOT3   = Path("./data/swde_HTMLgraphs_new/university")
 OUT_ROOT1.mkdir(parents=True, exist_ok=True)
 OUT_ROOT2.mkdir(parents=True, exist_ok=True)
 OUT_ROOT3.mkdir(parents=True, exist_ok=True)
@@ -71,7 +71,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     #         sparse.save_npz(out_dir / "E.npz", E, compressed=True)
     #         np.save(out_dir / "edge_index.npy", edge_index)
     #         pd.DataFrame(bbox).to_csv("bbox.csv", index=False)
-    
+
     #         return f"Saved: {str(out_dir)}"
         
     #     except Exception as e:
@@ -93,13 +93,14 @@ if __name__ == "__main__":
         workers = None
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
-            with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(True,)) as pool:
+            jsDisabled = True
+            with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(jsDisabled,)) as pool:
                 for saved_to in pool.map(process_file, batch, repeat(src, len(batch)), repeat(out, len(batch)), chunksize=1):
                     if saved_to:
                         print(saved_to)
                     else:
                         print("Error, skipping and restarting Chrome...")
-                        restart_Driver(False)
+                        restart_Driver(jsDisabled)
                         # print("Error, restarting pool and Chrome processes...")
                         # pool.shutdown(wait=True, cancel_futures=True)
                         # break

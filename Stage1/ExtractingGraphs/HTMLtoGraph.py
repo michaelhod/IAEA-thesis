@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
 import numpy as np
 from seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
@@ -48,15 +50,20 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
     
     #Prime the XPATHS dict
     # 3. Build XPath map (lxml can do this natively)
-    XPaths: Dict[str, etree._Element] = {}
-    idx2xpath = ["" for _ in range(N)]
+    XPaths: Dict[etree._Element, str] = {}
     for el, i in nodes.items():
         xp = tree.getpath(el)
-        XPaths[xp] = el
-        idx2xpath[i] = xp
+        XPaths[el] = xp
     
     # Collect bounding boxes
     bboxs = get_bbox(XPaths=list(XPaths.values()), driver=driver)
+
+    if len(bboxs) != len(nodes):
+        missing = []
+        for path in XPaths.values():
+            if path not in bboxs:
+                missing.append(path)
+        raise Exception(f"XPaths not found: {missing}")
 
     # 3. Build adjacency & graph ----------------------------------------------
     A = np.zeros((N, N), dtype=int)
@@ -67,7 +74,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
     # Populate Feature matrix, X
     for node, i in nodes.items():
         X[i, TAGSOFINTEREST[node.tag]] = 1 # One-hot tag
-        if node.getparent() and node.getparent() in nodes:
+        if node.getparent() is not None and node.getparent() in nodes:
             siblings = [sib for sib in node.getparent() if sib in nodes]
             X[i, -1] = siblings.index(node) + 1 # Sibling index (1-based like XPath)
         else:
@@ -77,7 +84,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
     for node, edgeStart in nodes.items():
         # Connect to parent
         parent = node.getparent()
-        if parent and parent in nodes:
+        if parent is not None and parent in nodes:
             edgeEnd = nodes[parent]
             A[edgeStart, edgeEnd] = 1
             edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
@@ -93,7 +100,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
                 edge_features.append(EdgeFeatures(edgeStart, edgeEnd, node, child, X, bboxs, parentMap, depthMap, XPaths))
 
         # Connect siblings (same parent, direct siblings)
-        siblings = [sib for sib in node.getparent() if sib in nodes] if node.getparent() else []
+        siblings = [sib for sib in node.getparent() if sib in nodes] if node.getparent() is not None else []
         for sib in siblings:
             edgeEnd = nodes[sib]
             if sib != node:
@@ -110,24 +117,24 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
 
     return A, X, E, edge_index, bboxs
 
+if __name__ == "__main__":
+    from seleniumDriver import get_Driver, driver_init, restart_Driver
+    html_file = Path("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0000.htm")
+    driver_init(True)
+    restart_Driver(True)
+    A, X, E, edge_index, bbox = html_to_graph(html_file, get_Driver())
+    print("Adjacency Matrix:\n", A.shape)
+    np.savetxt("X.csv", X, delimiter=",", fmt="%d")
 
-# from seleniumDriver import get_Driver, driver_init, restart_Driver
-# html_file = Path("./data/swde/sourceCode/sourceCode/movie/movie/movie-allmovie(2000)/0000.htm")
-# driver_init(True)
-# restart_Driver(True)
-# A, X, E, edge_index = html_to_graph(html_file, get_Driver())
-# print("Adjacency Matrix:\n", A.shape)
-# np.savetxt("X.csv", X, delimiter=",", fmt="%d")
+    # np.savetxt("E1.csv", E[0,:,:], delimiter=",", fmt="%d")
+    #print("Node Features:\n", X[49:])
+    #print("Edge features: ", bbox)
 
-# # np.savetxt("E1.csv", E[0,:,:], delimiter=",", fmt="%d")
-# #print("Node Features:\n", X[49:])
-# print("Edge features: ", E.shape)
-
-# # Make a nx graph
-# import networkx as nx
-# import matplotlib.pyplot as plt
-# G = nx.from_numpy_array(A)
-# position = nx.spring_layout(G)
-# fig, ax = plt.subplots(figsize=(12,8))
-# nx.draw(G, position, ax, with_labels=True)
-# plt.show()
+    # Make a nx graph
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    G = nx.from_numpy_array(A)
+    position = nx.spring_layout(G)
+    fig, ax = plt.subplots(figsize=(12,8))
+    nx.draw(G, position, ax, with_labels=True)
+    plt.show()

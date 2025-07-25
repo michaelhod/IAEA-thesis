@@ -32,13 +32,18 @@ def get_bbox(XPaths: list[str], driver):
         dict: A dictionary of {xpath expression:  {x:, y:, width:, height:}}.
     """
 
-    bboxs = {}
-    for xpath in XPaths:
-        elem = driver.find_element(By.XPATH, xpath)
-        
-        box  = driver.execute_script(
-            "const r = arguments[0].getBoundingClientRect();"
-            "return {x: r.x, y: r.y, width: r.width, height: r.height};", elem)
-        bboxs[xpath] = box
-
-    return bboxs
+    js = """
+    var results = {};
+    for (var i = 0; i < arguments[0].length; i++) {
+        var xpath = arguments[0][i];
+         try {
+            var elem = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            if (elem) {
+                var r = elem.getBoundingClientRect();
+                results[xpath] = {x: r.x, y: r.y, width: r.width, height: r.height};
+             }
+         } catch(e) {}
+    }
+    return results;
+    """
+    return driver.execute_script(js, XPaths)
