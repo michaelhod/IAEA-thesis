@@ -4,28 +4,11 @@ import json
 from pathlib import Path
 from typing import Dict
 from lxml import etree, html
-import collections
 from Stage1.ExtractingGraphs.verifyGraphSize import _verify_A_size
+from Stage1.tree_helpers import *
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 ALLOWED_TAGS = set(TAGSOFINTEREST.keys())
-
-def _prune_unwanted(tree: etree._ElementTree) -> None:
-    """Remove any element (and its subtree) whose tag is **not** in ALLOWED_TAGS."""
-    root = tree.getroot()
-    # Walk the tree *bottom‑up* so removing a child doesn't disturb iteration
-    for elem in list(reversed(list(root.iter()))):
-        if elem.tag not in ALLOWED_TAGS:
-            parent = elem.getparent()
-            if parent is not None:
-                parent.remove(elem)
-
-def load_html_as_tree(path: str) -> etree._ElementTree:
-    """Parse *HTML* with line‑numbers preserved."""
-    parser = etree.HTMLParser(huge_tree=True)
-    tree = html.parse(path, parser)
-    _prune_unwanted(tree)
-    return tree
 
 def load_json(path: str):
     with open(path, "r", encoding="utf-8") as fp:
@@ -40,17 +23,6 @@ def iterate_pairs(jsonFile, fileName: str):
             yield (parts[-1], value)
 
 # Logic --------------------------------------------------------------
-
-def _iter_elements_with_direct_text(tree: etree._ElementTree):
-    """Yield elements that have *direct* (not descendant) text."""
-    for elem in tree.iter():
-        if elem.text and elem.text.strip():
-            yield elem, elem.text
-        else:
-            for child in elem:
-                if child.tail and child.tail.strip():
-                    yield elem, child.tail
-                    break
 
 def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
     """Return elements relevant to *needle*.
@@ -73,13 +45,13 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
     needle_lower = needle.lower()
 
     # 1. Fast‑path: direct matches
-    direct_matches = [el for el, part_text in _iter_elements_with_direct_text(tree)
+    direct_matches = [el for el, part_text in iter_elements_with_direct_text(tree)
                       if needle_lower in part_text.lower()]  # type: ignore[arg-type]
     if direct_matches:
         return direct_matches
 
     # 2. Fallback: elements whose text is a *part* of the needle
-    substr_candidates = [(el, part_text) for el, part_text in _iter_elements_with_direct_text(tree)
+    substr_candidates = [(el, part_text) for el, part_text in iter_elements_with_direct_text(tree)
                          if part_text and part_text.strip().lower() in needle_lower]
     if not substr_candidates:
         return []  # nothing at all
@@ -114,65 +86,9 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
 
     return results
 
-def _bfs_index_map(tree: etree._ElementTree) -> Dict[etree._Element, int]:  # type: ignore[name-defined]
-    """Return a mapping ``element → BFS index`` (level‑order numbering)."""
-    root = tree.getroot()
-    queue = collections.deque([root])
-    index_map: Dict[etree._Element, int] = {}
-    idx = 0
-    while queue:
-        node = queue.popleft()
-        index_map[node] = idx
-        idx += 1
-        queue.extend(list(node))
-    return index_map
-
-def _build_parent_and_depth_maps(tree: etree._ElementTree):
-    """
-    Build maps of node→parent and node→depth for all elements in the tree.
-    Root has parent None and depth 0.
-    """
-    root = tree.getroot()
-    parent_map: Dict[etree._Element, etree._Element] = {}
-    depth_map: Dict[etree._Element, int] = {root: 0}
-    # BFS to establish parent and depth
-    queue: collections.deque[etree._Element] = collections.deque([root])  # type: ignore[name-defined]
-    while queue:
-        node = queue.popleft()
-        for child in list(node):
-            parent_map[child] = node
-            depth_map[child] = depth_map[node] + 1
-            queue.append(child)
-    return parent_map, depth_map
-
-
-def _compute_hops(a: etree._Element, b: etree._Element,
-                  parent_map: Dict[etree._Element, etree._Element],
-                  depth_map: Dict[etree._Element, int]) -> int:
-    """
-    Compute number of hops (edges) between nodes a and b in the tree.
-    """
-    # Bring a and b to the same depth
-    da, db = depth_map.get(a, 0), depth_map.get(b, 0)
-    hops = 0
-    na, nb = a, b
-    # Ascend deeper node
-    while da > db:
-        na = parent_map.get(na, na)
-        da -= 1; hops += 1
-    while db > da:
-        nb = parent_map.get(nb, nb)
-        db -= 1; hops += 1
-    # Ascend both until common ancestor
-    while na is not nb:
-        na = parent_map.get(na, na)
-        nb = parent_map.get(nb, nb)
-        hops += 2
-    return hops
-
 def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
     """Compute closest (by line diff) element pair for *left*, *right*."""
-    parent_map, depth_map = _build_parent_and_depth_maps(tree)
+    parent_map, depth_map = build_parent_and_depth_maps(tree)
     
     nodes_left = _find_matches(tree, left, depth_map)
     nodes_right = _find_matches(tree, right, depth_map)
@@ -181,13 +97,13 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
         # No match for one or both texts
         return f"{left} | {right}"
 
-    bfs_indices = _bfs_index_map(tree)
+    bfs_indices = bfs_index_map(tree)
 
     best_hops = float("inf")
     best_pair = (None, None)
     for a in nodes_left:
         for b in nodes_right:
-            hops = _compute_hops(a, b, parent_map, depth_map)
+            hops = compute_hops(a, b, parent_map, depth_map)
             if hops < best_hops:
                 best_hops = hops
                 best_pair = (a, b)
@@ -197,6 +113,7 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 def label_extraction(htmlFile: Path, jsonContent, htmlFileApath) -> None:
 
     tree = load_html_as_tree(htmlFile)
+    save_tree_html(tree, "./debug.htm")
     if not _verify_A_size(sum(1 for _ in tree.iter()), htmlFileApath):
         raise Exception("The length of the tree does not match the length of the Adj matrix")
     htmlName = htmlFile.name
@@ -208,16 +125,16 @@ def label_extraction(htmlFile: Path, jsonContent, htmlFileApath) -> None:
 def labels_to_npz(labels, size):
     pass
 
-ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
-ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
-JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
+# ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
+# ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
+# TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
+# JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
 
-jsonContent = load_json(JSONFILE)
+# jsonContent = load_json(JSONFILE)
 
-htmlFolder = ANCHORHTML / TARGETFOLDER
-html_files = list(htmlFolder.rglob("*.htm"))
-htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
+# htmlFolder = ANCHORHTML / TARGETFOLDER
+# html_files = list(htmlFolder.rglob("*.htm"))
+# htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
 
-print(label_extraction(html_files[0], jsonContent, htmlAPath))
+# print(label_extraction(html_files[0], jsonContent, htmlAPath))
 
