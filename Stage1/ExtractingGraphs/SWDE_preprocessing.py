@@ -47,8 +47,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
         sparse.save_npz(out_dir / "X.npz", X, compressed=True)
         sparse.save_npz(out_dir / "E.npz", E, compressed=True)
         np.save(out_dir / "edge_index.npy", edge_index)
-        pd.DataFrame(bbox).to_csv("bbox.csv", index=False)
-
+        pd.DataFrame.from_dict(bbox, orient="index").to_csv(out_dir / "bbox.csv")
 
         return f"Saved: {str(out_dir)}"
 
@@ -70,7 +69,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     #         sparse.save_npz(out_dir / "X.npz", X, compressed=True)
     #         sparse.save_npz(out_dir / "E.npz", E, compressed=True)
     #         np.save(out_dir / "edge_index.npy", edge_index)
-    #         pd.DataFrame(bbox).to_csv("bbox.csv", index=False)
+    #         pd.DataFrame.from_dict(bbox, orient="index").to_csv(out_dir / "bbox.csv")
 
     #         return f"Saved: {str(out_dir)}"
         
