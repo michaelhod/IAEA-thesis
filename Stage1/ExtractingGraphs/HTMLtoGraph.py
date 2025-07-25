@@ -65,18 +65,16 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
     edge_features = []
 
     # Populate Feature matrix, X
-    for node in nodes:
-        X[nodes[node], TAGSOFINTEREST[node.tag]] = 1 # One-hot tag
+    for node, i in nodes.items():
+        X[i, TAGSOFINTEREST[node.tag]] = 1 # One-hot tag
         if node.getparent() and node.getparent() in nodes:
             siblings = [sib for sib in node.getparent() if sib in nodes]
-            X[nodes[node], -1] = siblings.index(node) + 1 # Sibling index (1-based like XPath)
+            X[i, -1] = siblings.index(node) + 1 # Sibling index (1-based like XPath)
         else:
-            X[nodes[node], -1] = 1
+            X[i, -1] = 1
 
     # Populate adj matrix, A
-    for node in nodes:
-        edgeStart = nodes[node]
-
+    for node, edgeStart in nodes.items():
         # Connect to parent
         parent = node.getparent()
         if parent and parent in nodes:
@@ -96,7 +94,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
 
         # Connect siblings (same parent, direct siblings)
         siblings = [sib for sib in node.getparent() if sib in nodes] if node.getparent() else []
-        for i, sib in enumerate(siblings):
+        for sib in siblings:
             edgeEnd = nodes[sib]
             if sib != node:
                 A[edgeStart, edgeEnd] = 1
