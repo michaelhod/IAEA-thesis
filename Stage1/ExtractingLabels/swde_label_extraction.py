@@ -7,9 +7,6 @@ from lxml import etree, html
 from Stage1.ExtractingGraphs.verifyGraphSize import _verify_A_size
 from Stage1.tree_helpers import *
 
-TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
-ALLOWED_TAGS = set(TAGSOFINTEREST.keys())
-
 def load_json(path: str):
     with open(path, "r", encoding="utf-8") as fp:
         return json.load(fp)

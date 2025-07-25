@@ -1,9 +1,9 @@
 import numpy as np
 from seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
-from bs4 import BeautifulSoup, Tag
 from pathlib import Path
 from safeHTMLTag import safe_name
+from Stage1.tree_helpers import *
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 
@@ -11,42 +11,7 @@ def saveHTML(filepath, html):
     with filepath.open("w", encoding="utf-8") as f:
         f.write(html)
 
-def xpath(tag, xpaths) -> str:
-    """
-    Build an XPath that uniquely identifies *bs4_element*
-    inside the parsed document.
-
-    • Tags are written literally: /html/body/div
-    • Siblings with the same tag get a 1-based index: /div[3]
-    """
-    parts = []
-    el = tag
-    while el and el.name:                 # stop at the BeautifulSoup object
-        if xpaths.get(el) is not None:
-            # If this element already has an XPath, return it
-            parts.append(xpaths[el][1:]) # Skip the first "/" as we will add it later
-            break
-
-        parent = el.parent
-        # How many direct siblings share this tag?
-        if parent:
-            same_tag_sibs = [sib for sib in parent.find_all(el.name, recursive=False)]
-
-            if len(same_tag_sibs) == 1:
-                # unique → no index
-                parts.append(safe_name(el.name))
-            else:
-                # add 1-based position
-                idx = same_tag_sibs.index(el) + 1
-                parts.append(f"{safe_name(el.name)}[{idx}]")
-
-        el = parent
-
-    parts.reverse()
-    xpaths[tag] = "/" + "/".join(parts)  # Store the XPath for this tag
-    return xpaths
-
-def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=None, hops=None):
+def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, parentMap, depthMap, XPaths):
     features = [0]*(2*len(TAGSOFINTEREST)+7)
 
     # Copy all X features for each node
@@ -55,11 +20,10 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=N
     for i in range(len(TAGSOFINTEREST)+1):
         features[i+len(TAGSOFINTEREST)+1] = X[edgeEnd, i]
     # Num hops between nodes
-    if hops:
-        features[-5] = hops
-    else:
-        raise Exception("NOT YET IMPLEMENTED THE HOPS CALCULATION BETWEEN TWO NODES")
+    features[-5] = compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap)
     # Distances between nodes
+    edgeEndXPath = XPaths[edgeEndNode]
+    edgeStartXPath = XPaths[edgeStartNode]
     features[-4] = bboxs[edgeEndXPath]["x"]-bboxs[edgeStartXPath]["x"]
     features[-3] = bboxs[edgeEndXPath]["y"]-bboxs[edgeStartXPath]["y"]
     features[-2] = bboxs[edgeEndXPath]["width"]-bboxs[edgeStartXPath]["width"]
@@ -68,45 +32,28 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartXPath, edgeEndXPath, X, bboxs, A=N
     return features
 
 def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Parameters
-    ----------
-    html
-        Raw HTML string
-
-    Returns
-    -------
-    A : (N, N) np.ndarray[bool]
-        Adjacency (parents <-> children and siblings).
-    X : (N, F_node) np.ndarray[float]
-        Node features: one-hot tag | sibling index.
-    E : (N, N, F_edge) np.ndarray[float]
-        Edge features: [X_i , X_j , hop_dist , Δx , Δy , Δh , Δw]
-    """
     # 1. Parse -----------------------------------------------------------------
-    html = filepath.read_text(encoding="utf-8")
+    tree = load_html_as_tree(filepath)
     
     open_selenium(filepath, driver)
     if OverwriteHTML:
         html = get_selenium_html(driver=driver)
-
-    soup = BeautifulSoup(html, "html5lib")
+        tree = load_htmlstr_as_tree(html)
 
     # Flatten DOM into a list of element nodes (excluding NavigableStrings)
-    nodes: dict[Tag, int] = {} # list every node and index it for the adj matrix
-    idx = 0
-    for el in soup.descendants:
-        if el.find_parent("noscript") is not None:
-            continue
-        if isinstance(el, Tag) and el.name in TAGSOFINTEREST and el not in nodes:
-            nodes[el] = idx
-            idx += 1
+    nodes = bfs_index_map(tree)
     N = len(nodes)
+
+    parentMap, depthMap = build_parent_and_depth_maps(tree)
     
     #Prime the XPATHS dict
-    XPaths = {}
-    for node in nodes:
-        XPaths = xpath(node, XPaths)
+    # 3. Build XPath map (lxml can do this natively)
+    XPaths: Dict[str, etree._Element] = {}
+    idx2xpath = ["" for _ in range(N)]
+    for el, i in nodes.items():
+        xp = tree.getpath(el)
+        XPaths[xp] = el
+        idx2xpath[i] = xp
     
     # Collect bounding boxes
     bboxs = get_bbox(XPaths=list(XPaths.values()), driver=driver)
@@ -119,9 +66,9 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
 
     # Populate Feature matrix, X
     for node in nodes:
-        X[nodes[node], TAGSOFINTEREST[node.name]] = 1 # One-hot tag
-        if node.parent and node.parent in nodes:
-            siblings = [sib for sib in node.parent.children if isinstance(sib, Tag) and sib in nodes]
+        X[nodes[node], TAGSOFINTEREST[node.tag]] = 1 # One-hot tag
+        if node.getparent() and node.getparent() in nodes:
+            siblings = [sib for sib in node.getparent() if sib in nodes]
             X[nodes[node], -1] = siblings.index(node) + 1 # Sibling index (1-based like XPath)
         else:
             X[nodes[node], -1] = 1
@@ -131,30 +78,30 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
         edgeStart = nodes[node]
 
         # Connect to parent
-        parent = node.parent
+        parent = node.getparent()
         if parent and parent in nodes:
             edgeEnd = nodes[parent]
             A[edgeStart, edgeEnd] = 1
             edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
-            edge_features.append(EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[parent], X, bboxs, hops=1))
+            edge_features.append(EdgeFeatures(edgeStart, edgeEnd, node, parent, X, bboxs, parentMap, depthMap, XPaths))
 
 
         # Connect to children
-        for child in node.children:
-            if isinstance(child, Tag) and child in nodes:
+        for child in node:
+            if child in nodes:
                 edgeEnd = nodes[child]
                 A[edgeStart, edgeEnd] = 1
                 edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
-                edge_features.append(EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[child], X, bboxs, hops=1))
+                edge_features.append(EdgeFeatures(edgeStart, edgeEnd, node, child, X, bboxs, parentMap, depthMap, XPaths))
 
         # Connect siblings (same parent, direct siblings)
-        siblings = [sib for sib in node.parent.children if isinstance(sib, Tag) and sib in nodes] if node.parent else []
+        siblings = [sib for sib in node.getparent() if sib in nodes] if node.getparent() else []
         for i, sib in enumerate(siblings):
             edgeEnd = nodes[sib]
             if sib != node:
                 A[edgeStart, edgeEnd] = 1
                 edge_list.append((edgeStart, edgeEnd)) # Indexed as breadth first search
-                edge_features.append(EdgeFeatures(edgeStart, edgeEnd, XPaths[node], XPaths[sib], X, bboxs, hops=1))
+                edge_features.append(EdgeFeatures(edgeStart, edgeEnd, node, sib, X, bboxs, parentMap, depthMap, XPaths))
 
     edge_index = np.array(edge_list)
     E = np.array(edge_features)
@@ -163,7 +110,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
         saveHTML(filepath, html)
         print(f"Overwrote {filepath}")
 
-    return A, X, E, edge_index
+    return A, X, E, edge_index, bboxs
 
 
 # from seleniumDriver import get_Driver, driver_init, restart_Driver

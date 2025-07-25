@@ -3,9 +3,26 @@ import html5lib
 import collections
 from typing import Dict
 from pathlib import Path
+import json
 
-def load_html_as_tree(path: str) -> etree._ElementTree:
-    """Parse *HTML* with line‑numbers preserved."""
+TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
+ALLOWED_TAGS = set(TAGSOFINTEREST.keys())
+
+def load_htmlstr_as_tree(html: str) -> etree._ElementTree:
+    """Parse html string"""
+    raw_bytes = html.encode("utf-8")
+
+    tree = html5lib.parse(
+        raw_bytes,
+        treebuilder="lxml",
+        namespaceHTMLElements=False,
+    )
+
+    _prune_unwanted(tree)
+    return tree
+
+def load_html_as_tree(path: Path) -> etree._ElementTree:
+    """Parse path"""
     with open(path, "rb") as fh:
         raw_bytes = fh.read()
 
@@ -95,20 +112,6 @@ def compute_hops(a: etree._Element, b: etree._Element,
         hops += 2
     return hops
 
-def save_tree_html(tree: etree._ElementTree, out_file: Path | str) -> None:
-    """Write the current tree to *out_file* as pretty‑printed HTML.
-
-    Useful during debugging to inspect exactly what remains after pruning.
-    """
-    out_path = Path(out_file)
-    html_str = etree.tostring(
-        tree.getroot(),
-        pretty_print=True,
-        encoding="unicode",
-        method="html",
-    )
-    out_path.write_text(html_str, encoding="utf-8")
-
 # Debugging helpers --------------------------------------------------------------------------------------------------------------------
 
 def debug_dump(tree: etree._ElementTree, max_bytes=10_000):
@@ -122,3 +125,17 @@ def debug_dump(tree: etree._ElementTree, max_bytes=10_000):
         encoding="unicode"  # return str, not bytes
     )
     print(html_str[:max_bytes] + ("…[truncated]" if len(html_str) > max_bytes else ""))
+
+def save_tree_html(tree: etree._ElementTree, out_file: Path | str) -> None:
+    """Write the current tree to *out_file* as pretty‑printed HTML.
+
+    Useful during debugging to inspect exactly what remains after pruning.
+    """
+    out_path = Path(out_file)
+    html_str = etree.tostring(
+        tree.getroot(),
+        pretty_print=True,
+        encoding="unicode",
+        method="html",
+    )
+    out_path.write_text(html_str, encoding="utf-8")

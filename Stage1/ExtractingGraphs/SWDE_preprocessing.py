@@ -8,7 +8,7 @@ from scipy import sparse
 import subprocess
 import time
 from selenium.common.exceptions import NoSuchElementException
-import random
+import pandas as pd
 import csv
 
 # ── paths ───────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     try:
-        A, X, E, edge_index = html_to_graph(filepath, get_Driver(), OverwriteHTML=False)
+        A, X, E, edge_index, bbox = html_to_graph(filepath, get_Driver(), OverwriteHTML=False)
         
         # save arrays
         A = sparse.csr_matrix(A)
@@ -47,6 +47,8 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
         sparse.save_npz(out_dir / "X.npz", X, compressed=True)
         sparse.save_npz(out_dir / "E.npz", E, compressed=True)
         np.save(out_dir / "edge_index.npy", edge_index)
+        pd.DataFrame(bbox).to_csv("bbox.csv", index=False)
+
 
         return f"Saved: {str(out_dir)}"
 
@@ -68,7 +70,8 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     #         sparse.save_npz(out_dir / "X.npz", X, compressed=True)
     #         sparse.save_npz(out_dir / "E.npz", E, compressed=True)
     #         np.save(out_dir / "edge_index.npy", edge_index)
-
+    #         pd.DataFrame(bbox).to_csv("bbox.csv", index=False)
+    
     #         return f"Saved: {str(out_dir)}"
         
     #     except Exception as e:
