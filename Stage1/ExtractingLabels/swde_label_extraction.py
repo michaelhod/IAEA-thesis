@@ -122,16 +122,17 @@ def label_extraction(htmlFile: Path, jsonContent, htmlFileApath) -> None:
 def labels_to_npz(labels, size):
     pass
 
-# ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
-# ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-# TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
-# JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
+if __name__ == "__main__":
+    ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
+    ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
+    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
 
-# jsonContent = load_json(JSONFILE)
+    jsonContent = load_json(JSONFILE)
 
-# htmlFolder = ANCHORHTML / TARGETFOLDER
-# html_files = list(htmlFolder.rglob("*.htm"))
-# htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
+    htmlFolder = ANCHORHTML / TARGETFOLDER
+    html_files = list(htmlFolder.rglob("*.htm"))
+    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
 
-# print(label_extraction(html_files[0], jsonContent, htmlAPath))
+    print(label_extraction(html_files[0], jsonContent, htmlAPath))
 

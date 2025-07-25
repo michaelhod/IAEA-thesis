@@ -124,7 +124,7 @@ if __name__ == "__main__":
     restart_Driver(True)
     A, X, E, edge_index, bbox = html_to_graph(html_file, get_Driver())
     print("Adjacency Matrix:\n", A.shape)
-    np.savetxt("X.csv", X, delimiter=",", fmt="%d")
+    #np.savetxt("X.csv", X, delimiter=",", fmt="%d")
 
     # np.savetxt("E1.csv", E[0,:,:], delimiter=",", fmt="%d")
     #print("Node Features:\n", X[49:])
