@@ -1,19 +1,39 @@
+import html5lib._ihatexml
 from lxml import etree, html
-import html5lib
 import collections
 from typing import Dict
 from pathlib import Path
 import json
+import re
+import warnings, html5lib
+
+warnings.filterwarnings(
+    "ignore",
+    category=html5lib.serializer.DataLossWarning
+    if hasattr(html5lib.serializer, "DataLossWarning")
+    else html5lib._ihatexml.DataLossWarning
+)
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 ALLOWED_TAGS = set(TAGSOFINTEREST.keys())
 
+_ILLEGAL_CTRL = re.compile(r'&#(?:0*([0-9]+)|x0*([0-9a-fA-F]+));')
+
+def _strip_bad_refs(text: str) -> str:
+    """Remove numeric character refs that map to disallowed C0 controls."""
+    def repl(m):
+        dec = m.group(1)
+        value = int(dec, 10) if dec else int(m.group(2), 16)
+        return '' if 0 <= value < 32 and value not in (9, 10, 13) else m.group(0)
+    return _ILLEGAL_CTRL.sub(repl, text)
+
 def load_htmlstr_as_tree(html: str) -> etree._ElementTree:
     """Parse html string"""
-    raw_bytes = html.encode("utf-8")
+    html = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', html)
+    html = _strip_bad_refs(html)
 
     tree = html5lib.parse(
-        raw_bytes,
+        html,
         treebuilder="lxml",
         namespaceHTMLElements=False,
     )
@@ -26,9 +46,15 @@ def load_html_as_tree(path: Path) -> etree._ElementTree:
     with open(path, "rb") as fh:
         raw_bytes = fh.read()
 
-    # html5lib fixes the html
+    text = raw_bytes.decode("utf-8", "replace")
+
+    # 2) drop literal C0 bytes AND refs like &#27;
+    text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', text)
+    text = _strip_bad_refs(text)
+
+    # Second pass: build the *lxml* tree
     tree = html5lib.parse(
-        raw_bytes,
+        text,
         treebuilder="lxml",
         namespaceHTMLElements=False,
     )

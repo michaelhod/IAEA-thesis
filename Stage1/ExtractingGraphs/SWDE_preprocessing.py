@@ -24,6 +24,7 @@ OUT_ROOT3.mkdir(parents=True, exist_ok=True)
 # SRC_FOLDER_WDC = Path("./data/wdc_microdata_html")
 # OUT_ROOT_WDC = Path("./data/wdc_microdata_HTMLgraphs")
 # OUT_ROOT_WDC.mkdir(parents=True, exist_ok=True)
+JSDISABLED = True
 
 # ── worker ──────────────────────────────────────────────────────────────────────
 def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
@@ -75,31 +76,31 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
         
     #     except Exception as e:
     #         print(f"{filepath.absolute().resolve()}: {e}")
+    #         restart_Driver(jsDisabled)
     #         return None
 
     except Exception as e:
         with open('./data/skipped.csv', 'a') as f:
             writer = csv.writer(f)
-            writer.writerow(filepath)
+            writer.writerow([filepath])
         print(f"{filepath.absolute().resolve()}: {e}")
+        restart_Driver(JSDISABLED)
         return None
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    for src, out in zip([SRC_FOLDER3, SRC_FOLDER1, SRC_FOLDER2],[OUT_ROOT3, OUT_ROOT1, OUT_ROOT2]):
+    for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
         html_files = list(src.rglob("*.htm"))
         batchsize = len(html_files)
-        workers = None
+        workers = 8
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
-            jsDisabled = True
-            with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(jsDisabled,)) as pool:
+            with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(JSDISABLED,)) as pool:
                 for saved_to in pool.map(process_file, batch, repeat(src, len(batch)), repeat(out, len(batch)), chunksize=1):
                     if saved_to:
                         print(saved_to)
                     else:
-                        print("Error, skipping and restarting Chrome...")
-                        restart_Driver(jsDisabled)
+                        print("Error, skipped and restarted Chrome...")
                         # print("Error, restarting pool and Chrome processes...")
                         # pool.shutdown(wait=True, cancel_futures=True)
                         # break
