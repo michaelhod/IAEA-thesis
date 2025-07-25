@@ -110,7 +110,7 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 def label_extraction(htmlFile: Path, jsonContent, htmlFileApath) -> None:
 
     tree = load_html_as_tree(htmlFile)
-    save_tree_html(tree, "./debug.htm")
+
     if not _verify_A_size(sum(1 for _ in tree.iter()), htmlFileApath):
         raise Exception("The length of the tree does not match the length of the Adj matrix")
     htmlName = htmlFile.name
