@@ -82,7 +82,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     except Exception as e:
         with open('./data/skipped.csv', 'a') as f:
             writer = csv.writer(f)
-            writer.writerow([filepath])
+            writer.writerow([filepath, e])
         print(f"{filepath.absolute().resolve()}: {e}")
         restart_Driver(JSDISABLED)
         return None

@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 from typing import Dict
 from lxml import etree, html
-from Stage1.ExtractingGraphs.verifyGraphSize import _verify_A_size
+from Stage1.ExtractingGraphs.verifyGraphSize import verify_A_size
 from Stage1.tree_helpers import *
+import numpy as np
+from scipy import sparse
 
 def load_json(path: str):
     with open(path, "r", encoding="utf-8") as fp:
@@ -64,7 +66,7 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
         node = el
         # Walk up until an ancestor directly contains the full needle
         while node is not None:
-            txt = ''.join(node.itertext()).strip() or ""
+            txt = get_node_text(node) or ""
             if txt and needle_lower in txt.lower():
                 break  # node now holds the ancestor with full match
             node = node.getparent()
@@ -83,6 +85,20 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
 
     return results
 
+def _find_exact_matches(potential_matches: list[etree._Element], needle:str) -> list:
+    """
+    Finds exact matches from nodes in potential_matches
+    
+    If no matches, returns the whole list"""
+    exact_matches = []
+    for node in potential_matches:
+        txt = get_node_text(node).lower()
+
+        if txt == needle.lower():
+            exact_matches.append(node)
+
+    return exact_matches if len(exact_matches) > 0 else potential_matches
+
 def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
     """Compute closest (by line diff) element pair for *left*, *right*."""
     parent_map, depth_map = build_parent_and_depth_maps(tree)
@@ -92,35 +108,73 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     if not nodes_left or not nodes_right:
         # No match for one or both texts
+        if not nodes_left:
+            print(f"\"{left}\" not found in {left} | {right}")
+        if not nodes_right:
+            print(f"\"{right}\" not found in {left} | {right}")
+        
         return f"{left} | {right}"
 
-    bfs_indices = bfs_index_map(tree)
+    #Find unique exact match, otherwise best guess
+    nodes_left = _find_exact_matches(nodes_left, left)
+    nodes_right = _find_exact_matches(nodes_right, right)
+
+    bfs_indices, _ = bfs_index_map(tree)
 
     best_hops = float("inf")
     best_pair = (None, None)
     for a in nodes_left:
         for b in nodes_right:
             hops = compute_hops(a, b, parent_map, depth_map)
-            if hops < best_hops:
+            if hops > 0 and hops < best_hops: #Can't be itself
                 best_hops = hops
                 best_pair = (a, b)
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
-def label_extraction(htmlFile: Path, jsonContent, htmlFileApath) -> None:
+def label_extraction(htmlFile: Path, jsonContent, verifyTreeAgainstFile = None, displayLabels=False) -> None:
 
     tree = load_html_as_tree(htmlFile)
 
-    if not _verify_A_size(sum(1 for _ in tree.iter()), htmlFileApath):
-        raise Exception("The length of the tree does not match the length of the Adj matrix")
+    if verifyTreeAgainstFile:
+        verify_A_size(sum(1 for _ in tree.iter()), verifyTreeAgainstFile)
+    
     htmlName = htmlFile.name
 
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
 
+    if displayLabels:
+        display_labels(tree, results)
+
     return results
 
-def labels_to_npz(labels, size):
-    pass
+def display_labels(tree, results):
+    """input tree of html and results of pairs"""
+    coords = [(coord[0], coord[1]) for coord in results if isinstance(coord[0], int) and isinstance(coord[1], int)]
+    _, nodes = bfs_index_map(tree)
+    for i,j in coords:
+        tag1 = nodes[i].tag
+        txt1 = ''.join(nodes[i].itertext()).strip()
+        #line1 = nodes[i].sourceline
+        tag2 = nodes[j].tag
+        txt2 = ''.join(nodes[j].itertext()).strip()
+        #line2 = nodes[j].sourceline
+
+        print(f"<{tag1}>{txt1}</{tag1}> -> <{tag2}>{txt2}</{tag2}>")#: \t\tSourceLine {line1} -> {line2}")
+    print(len(coords))
+
+def save_labels_to_npz(labels, graphSize, out_dir: Path):
+    coords = [(coord[0], coord[1]) for coord in labels if isinstance(coord[0], int) and isinstance(coord[1], int)]
+    if not coords:
+        raise ValueError("nothing to save – no valid (int, int) pairs found")
+    
+    mask = np.zeros((graphSize, graphSize), dtype=np.uint8)
+    for i, j in coords:
+        mask[i, j] = 1
+
+    mask = sparse.csr_matrix(mask)
+    sparse.save_npz(out_dir / "labels.npz", mask, compressed=True)
+    print(f"saved {out_dir}/labels.npz")
 
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
@@ -134,5 +188,5 @@ if __name__ == "__main__":
     html_files = list(htmlFolder.rglob("*.htm"))
     htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
 
-    print(label_extraction(html_files[0], jsonContent, htmlAPath))
+    label_extraction(html_files[0], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
 

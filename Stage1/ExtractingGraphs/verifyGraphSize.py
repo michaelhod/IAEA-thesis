@@ -2,9 +2,11 @@ from scipy import sparse
 # import torch
 # import numpy as np
 
-def _verify_A_size(size, path):
+def verify_A_size(size, path, RAISE=True):
     A_csr = sparse.load_npz(path)
     A_coo = A_csr.tocoo()
+    if RAISE and size != A_coo.shape[0]:
+        raise Exception(F"The no. of html tags, {size}, does not match the length of the Adj matrix, {A_coo.shape[0]}")
     return size == A_coo.shape[0]
 
 # A_csr = sparse.load_npz("./data/swde_HTMLgraphs/movie/test/A.npz")  # Just change A.npz for E or X

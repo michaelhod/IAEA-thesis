@@ -83,18 +83,20 @@ def iter_elements_with_direct_text(tree: etree._ElementTree):
                     yield elem, child.tail
                     break
 
-def bfs_index_map(tree: etree._ElementTree) -> Dict[etree._Element, int]:
+def bfs_index_map(tree: etree._ElementTree) -> tuple[Dict[etree._Element, int], list[etree._Element]]:
     """Return a mapping ``element → BFS index`` (level‑order numbering)."""
     root = tree.getroot()
     queue = collections.deque([root])
     index_map: Dict[etree._Element, int] = {}
+    node_map = []
     idx = 0
     while queue:
         node = queue.popleft()
         index_map[node] = idx
+        node_map.append(node)
         idx += 1
         queue.extend(list(node))
-    return index_map
+    return index_map, node_map
 
 def build_parent_and_depth_maps(tree: etree._ElementTree):
     """
@@ -137,6 +139,9 @@ def compute_hops(a: etree._Element, b: etree._Element,
         nb = parent_map.get(nb, nb)
         hops += 2
     return hops
+
+def get_node_text(node: etree._Element) -> str:
+    return ''.join(node.itertext()).strip()
 
 # Debugging helpers --------------------------------------------------------------------------------------------------------------------
 

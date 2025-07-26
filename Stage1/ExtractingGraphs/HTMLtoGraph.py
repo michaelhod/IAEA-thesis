@@ -43,7 +43,7 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
         tree = load_htmlstr_as_tree(html)
 
     # Flatten DOM into a list of element nodes (excluding NavigableStrings)
-    nodes = bfs_index_map(tree)
+    nodes, _ = bfs_index_map(tree)
     N = len(nodes)
 
     parentMap, depthMap = build_parent_and_depth_maps(tree)
