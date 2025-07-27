@@ -8,6 +8,7 @@ from Stage1.ExtractingGraphs.verifyGraphSize import verify_A_size
 from Stage1.tree_helpers import *
 import numpy as np
 from scipy import sparse
+import re
 
 def load_json_of_swde_file(htmlFilepath: str):
     htmlFilepath = htmlFilepath.split("/") if "/" in htmlFilepath else htmlFilepath.split("\\")
@@ -69,7 +70,10 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
         # Walk up until an ancestor directly contains the full needle
         while node is not None:
             txt = get_node_text(node) or ""
-            if txt and needle_lower in txt.lower():
+
+            needle_norm = re.sub(r"\s+", " ", needle_lower)
+            txt_norm = re.sub(r"\s+", " ", txt).lower()
+            if needle_norm in txt_norm:
                 break  # node now holds the ancestor with full match
             node = node.getparent()
         target = node
@@ -111,9 +115,9 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
     if not nodes_left or not nodes_right:
         # No match for one or both texts
         if not nodes_left:
-            print(f"\"{left}\" not found in {left} | {right}")
+            print(f"Left not found in {left} | {right}")
         if not nodes_right:
-            print(f"\"{right}\" not found in {left} | {right}")
+            print(f"Right not found in {left} | {right}")
         
         return f"{left} | {right}"
 
@@ -189,9 +193,9 @@ if __name__ == "__main__":
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
+    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[4].with_suffix("").name / "A.npz"
 
-    jsonContent = load_json_of_swde_file(html_files[0])
+    jsonContent = load_json_of_swde_file(str(html_files[4]))
 
-    label_extraction(html_files[0], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
+    label_extraction(html_files[4], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
 
