@@ -9,8 +9,10 @@ from Stage1.tree_helpers import *
 import numpy as np
 from scipy import sparse
 
-def load_json(path: str):
-    with open(path, "r", encoding="utf-8") as fp:
+def load_json_of_swde_file(htmlFilepath: str):
+    htmlFilepath = htmlFilepath.split("/") if "/" in htmlFilepath else htmlFilepath.split("\\")
+    jsonFilepath = f"./data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json"
+    with open(jsonFilepath, "r", encoding="utf-8") as fp:
         return json.load(fp)
 
 def iterate_pairs(jsonFile, fileName: str):
@@ -71,13 +73,13 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
                 break  # node now holds the ancestor with full match
             node = node.getparent()
         target = node
-        if target and target not in seen:
+        if target is not None and target not in seen:
             seen.add(target)                
             results.append(target)
 
             #Also add all parents to seen
             parent = target.getparent()
-            while parent and parent not in seen:
+            while parent is not None and parent not in seen:
                 seen.add(parent)
                 parent = parent.getparent()
                 if parent in seen:
@@ -132,23 +134,7 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
-def label_extraction(htmlFile: Path, jsonContent, verifyTreeAgainstFile = None, displayLabels=False) -> None:
-
-    tree = load_html_as_tree(htmlFile)
-
-    if verifyTreeAgainstFile:
-        verify_A_size(sum(1 for _ in tree.iter()), verifyTreeAgainstFile)
-    
-    htmlName = htmlFile.name
-
-    results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
-
-    if displayLabels:
-        display_labels(tree, results)
-
-    return results
-
-def display_labels(tree, results):
+def _display_labels(tree, results):
     """input tree of html and results of pairs"""
     coords = [(coord[0], coord[1]) for coord in results if isinstance(coord[0], int) and isinstance(coord[1], int)]
     _, nodes = bfs_index_map(tree)
@@ -163,7 +149,27 @@ def display_labels(tree, results):
         print(f"<{tag1}>{txt1}</{tag1}> -> <{tag2}>{txt2}</{tag2}>")#: \t\tSourceLine {line1} -> {line2}")
     print(len(coords))
 
-def save_labels_to_npz(labels, graphSize, out_dir: Path):
+def label_extraction(htmlFile: Path, jsonContent, out_file:Path=None, verifyTreeAgainstFile=None, displayLabels=False) -> list[tuple]:
+
+    tree = load_html_as_tree(htmlFile)
+    treeSize = sum(1 for _ in tree.iter())
+
+    if verifyTreeAgainstFile:
+        verify_A_size(treeSize, verifyTreeAgainstFile)
+    
+    htmlName = htmlFile.name
+
+    results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
+
+    if displayLabels:
+        _display_labels(tree, results)
+
+    if out_file:
+        _save_labels_to_npz(results, treeSize, out_file)
+
+    return results
+
+def _save_labels_to_npz(labels, graphSize, out_file: Path):
     coords = [(coord[0], coord[1]) for coord in labels if isinstance(coord[0], int) and isinstance(coord[1], int)]
     if not coords:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
@@ -173,8 +179,7 @@ def save_labels_to_npz(labels, graphSize, out_dir: Path):
         mask[i, j] = 1
 
     mask = sparse.csr_matrix(mask)
-    sparse.save_npz(out_dir / "labels.npz", mask, compressed=True)
-    print(f"saved {out_dir}/labels.npz")
+    sparse.save_npz(out_file, mask, compressed=True)
 
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
@@ -182,11 +187,11 @@ if __name__ == "__main__":
     TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
     JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
 
-    jsonContent = load_json(JSONFILE)
-
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
     htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name / "A.npz"
+
+    jsonContent = load_json_of_swde_file(html_files[0])
 
     label_extraction(html_files[0], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
 
