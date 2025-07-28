@@ -4,6 +4,7 @@ from itertools import repeat
 from concurrent.futures import ProcessPoolExecutor
 import subprocess
 import csv
+import time
 
 # ── paths ───────────────────────────────────────────────────────────────────────
 SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie/movie")
@@ -21,6 +22,7 @@ OUT_ROOT3.mkdir(parents=True, exist_ok=True)
 
 # ── worker ──────────────────────────────────────────────────────────────────────
 def process_file(filepath: Path, SRC: Path, OUT: Path, jsonAnswers=None) -> str | None:
+    time.sleep(0.1) # To be kind to computer
     # build a parallel directory structure under OUT_ROOT
     rel = filepath.relative_to(SRC)
     out_dir = (OUT / rel).with_suffix("")

@@ -1,5 +1,6 @@
 import html5lib._ihatexml
-from lxml import etree, html
+from lxml import etree
+import html
 import collections
 from typing import Dict
 from pathlib import Path
@@ -77,11 +78,10 @@ def iter_elements_with_direct_text(tree: etree._ElementTree):
     for elem in tree.iter():
         if elem.text and elem.text.strip():
             yield elem, elem.text
-        else:
-            for child in elem:
-                if child.tail and child.tail.strip():
-                    yield elem, child.tail
-                    break
+        for child in elem: # Check the rest of the element
+            if child.tail and child.tail.strip():
+                yield elem, child.tail
+                # break
 
 def bfs_index_map(tree: etree._ElementTree) -> tuple[Dict[etree._Element, int], list[etree._Element]]:
     """Return a mapping ``element → BFS index`` (level‑order numbering)."""
@@ -140,8 +140,16 @@ def compute_hops(a: etree._Element, b: etree._Element,
         hops += 2
     return hops
 
-def get_node_text(node: etree._Element) -> str:
-    return ''.join(node.itertext()).strip()
+def get_node_text(node: etree._Element, normalised=False) -> str:
+    txt = ''.join(node.itertext()).strip()
+    if normalised:
+        txt = normalise_text(txt)
+    return txt
+
+def normalise_text(txt:str) -> str:
+    txt = html.unescape(txt).lower().replace("\r","\n") # normaluse carridge return
+    txt = re.sub(r"[^a-z0-9]+", "", txt.lower())
+    return txt
 
 # Debugging helpers --------------------------------------------------------------------------------------------------------------------
 

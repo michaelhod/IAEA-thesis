@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Dict
 from lxml import etree, html
+import html as htm
 from Stage1.ExtractingGraphs.verifyGraphSize import verify_A_size
 from Stage1.tree_helpers import *
 import numpy as np
@@ -19,6 +20,12 @@ def load_json_of_swde_file(htmlFilepath: str):
 def iterate_pairs(jsonFile, fileName: str):
     for labels, values in jsonFile[fileName].items():
         parts = [label.strip() for label in labels.split("|")]
+        for value in parts.copy(): # This is to remove the specific case in metacritic where &&& does not refer to anything in the HTML
+            if "&&&" in value: 
+                parts.remove(value)
+                print()
+                print(f"WARNING, {value} removed from json labels")
+                print()
         for i in range(len(parts) - 1):
             yield (parts[i], parts[i+1])
         for value in values:
@@ -44,17 +51,17 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
     The procedure touches each node at most once per ascent chain, giving good
     performance even for large documents.
     """
-    needle_lower = needle.lower()
+    needle_lower = htm.unescape(needle).lower().replace("\r", "\n") 
 
     # 1. Fast‑path: direct matches
     direct_matches = [el for el, part_text in iter_elements_with_direct_text(tree)
-                      if needle_lower in part_text.lower()]  # type: ignore[arg-type]
+                      if needle_lower in part_text.lower()] #Note, can have duplicates
     if direct_matches:
         return direct_matches
 
     # 2. Fallback: elements whose text is a *part* of the needle
     substr_candidates = [(el, part_text) for el, part_text in iter_elements_with_direct_text(tree)
-                         if part_text and part_text.strip().lower() in needle_lower]
+                         if part_text and part_text.strip().lower() in needle_lower] #Note, can have duplicates
     if not substr_candidates:
         return []  # nothing at all
 
@@ -69,13 +76,13 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
         node = el
         # Walk up until an ancestor directly contains the full needle
         while node is not None:
-            txt = get_node_text(node) or ""
+            txt_normalised = get_node_text(node, True) or ""
+            needle_normalised = normalise_text(needle_lower)
 
-            needle_norm = re.sub(r"\s+", " ", needle_lower)
-            txt_norm = re.sub(r"\s+", " ", txt).lower()
-            if needle_norm in txt_norm:
+            if needle_normalised in txt_normalised: #Remove all non letters
                 break  # node now holds the ancestor with full match
             node = node.getparent()
+        
         target = node
         if target is not None and target not in seen:
             seen.add(target)                
@@ -86,7 +93,7 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
             while parent is not None and parent not in seen:
                 seen.add(parent)
                 parent = parent.getparent()
-                if parent in seen:
+                if parent in seen and parent in results:
                     results.remove(parent)
 
     return results
@@ -98,9 +105,10 @@ def _find_exact_matches(potential_matches: list[etree._Element], needle:str) -> 
     If no matches, returns the whole list"""
     exact_matches = []
     for node in potential_matches:
-        txt = get_node_text(node).lower()
+        txt = get_node_text(node, True)
+        needle_normalised = normalise_text(needle)
 
-        if txt == needle.lower():
+        if txt == needle_normalised:
             exact_matches.append(node)
 
     return exact_matches if len(exact_matches) > 0 else potential_matches
@@ -109,12 +117,14 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
     """Compute closest (by line diff) element pair for *left*, *right*."""
     parent_map, depth_map = build_parent_and_depth_maps(tree)
     
-    nodes_left = _find_matches(tree, left, depth_map)
-    nodes_right = _find_matches(tree, right, depth_map)
+    nodes_left = _find_matches(tree, left, depth_map) #Note, can have duplicates
+    nodes_right = _find_matches(tree, right, depth_map) #Note, can have duplicates
 
     if not nodes_left or not nodes_right:
         # No match for one or both texts
         if not nodes_left:
+            if "topic_entity_name" in left: #Ignore this particular case
+                return None
             print(f"Left not found in {left} | {right}")
         if not nodes_right:
             print(f"Right not found in {left} | {right}")
@@ -132,15 +142,18 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
     for a in nodes_left:
         for b in nodes_right:
             hops = compute_hops(a, b, parent_map, depth_map)
-            if hops > 0 and hops < best_hops: #Can't be itself
+            if hops < best_hops:
                 best_hops = hops
                 best_pair = (a, b)
 
+                if hops == 0: #Can't be itself
+                    print(f"found the same tag for {left} | {right}")
+                    return f"{left} | {right}"
+
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
-def _display_labels(tree, results):
+def _display_labels(tree, coords):
     """input tree of html and results of pairs"""
-    coords = [(coord[0], coord[1]) for coord in results if isinstance(coord[0], int) and isinstance(coord[1], int)]
     _, nodes = bfs_index_map(tree)
     for i,j in coords:
         tag1 = nodes[i].tag
@@ -164,17 +177,17 @@ def label_extraction(htmlFile: Path, jsonContent, out_file:Path=None, verifyTree
     htmlName = htmlFile.name
 
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
+    coords = [(coord[0], coord[1]) for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int)]
 
     if displayLabels:
-        _display_labels(tree, results)
+        _display_labels(tree, coords)
 
     if out_file:
-        _save_labels_to_npz(results, treeSize, out_file)
+        _save_coords_to_npz(coords, treeSize, out_file)
 
     return results
 
-def _save_labels_to_npz(labels, graphSize, out_file: Path):
-    coords = [(coord[0], coord[1]) for coord in labels if isinstance(coord[0], int) and isinstance(coord[1], int)]
+def _save_coords_to_npz(coords, graphSize, out_file: Path):
     if not coords:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
     
@@ -188,14 +201,14 @@ def _save_labels_to_npz(labels, graphSize, out_file: Path):
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie-allmovie(2000).json"
+    TARGETFOLDER = Path("nbaplayer/nbaplayer/nbaplayer-foxsports(425)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/nbaplayer/nbaplayer/nbaplayer-foxsports(425).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[4].with_suffix("").name / "A.npz"
+    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[358].with_suffix("").name / "A.npz"
 
-    jsonContent = load_json_of_swde_file(str(html_files[4]))
+    jsonContent = load_json_of_swde_file(str(html_files[358]))
 
-    label_extraction(html_files[4], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
+    label_extraction(html_files[358], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
 
