@@ -20,15 +20,17 @@ def load_json_of_swde_file(htmlFilepath: str):
 def iterate_pairs(jsonFile, fileName: str):
     for labels, values in jsonFile[fileName].items():
         parts = [label.strip() for label in labels.split("|")]
-        for value in parts.copy(): # This is to remove the specific case in metacritic where &&& does not refer to anything in the HTML
-            if "&&&" in value: 
-                parts.remove(value)
-                print()
-                print(f"WARNING, {value} removed from json labels")
-                print()
+        for part in parts.copy(): # This is to remove the specific case in metacritic where &&& does not refer to anything in the HTML
+            if "&&&" in part: 
+                parts.remove(part)
+                #print(f"WARNING, {value} removed from json labels")
+            elif part == "":
+                parts.remove(part)
         for i in range(len(parts) - 1):
             yield (parts[i], parts[i+1])
         for value in values:
+            if value == "":
+                continue
             yield (parts[-1], value)
 
 # Logic --------------------------------------------------------------
@@ -55,13 +57,13 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
 
     # 1. Fast‑path: direct matches
     direct_matches = [el for el, part_text in iter_elements_with_direct_text(tree)
-                      if needle_lower in part_text.lower()] #Note, can have duplicates
+                      if normalise_text(needle_lower) in normalise_text(part_text)] #Note, can have duplicates
     if direct_matches:
         return direct_matches
 
     # 2. Fallback: elements whose text is a *part* of the needle
     substr_candidates = [(el, part_text) for el, part_text in iter_elements_with_direct_text(tree)
-                         if part_text and part_text.strip().lower() in needle_lower] #Note, can have duplicates
+                         if part_text and normalise_text(part_text) in normalise_text(needle_lower)] #Note, can have duplicates
     if not substr_candidates:
         return []  # nothing at all
 
@@ -125,11 +127,9 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
         if not nodes_left:
             if "topic_entity_name" in left: #Ignore this particular case
                 return None
-            print(f"Left not found in {left} | {right}")
-        if not nodes_right:
-            print(f"Right not found in {left} | {right}")
-        
-        return f"{left} | {right}"
+            return f"Left not found in: {left} | {right}"
+        else:
+            return f"Right not found in: {left} | {right}"
 
     #Find unique exact match, otherwise best guess
     nodes_left = _find_exact_matches(nodes_left, left)
@@ -147,8 +147,7 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
                 best_pair = (a, b)
 
                 if hops == 0: #Can't be itself
-                    print(f"found the same tag for {left} | {right}")
-                    return f"{left} | {right}"
+                    return f"found the same tag for: {left} | {right}"
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
@@ -201,14 +200,14 @@ def _save_coords_to_npz(coords, graphSize, out_file: Path):
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("nbaplayer/nbaplayer/nbaplayer-foxsports(425)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/nbaplayer/nbaplayer/nbaplayer-foxsports(425).json"
+    TARGETFOLDER = Path("movie/movie/movie-imdb(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-imdb(2000).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[358].with_suffix("").name / "A.npz"
+    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[763].with_suffix("").name / "A.npz"
 
-    jsonContent = load_json_of_swde_file(str(html_files[358]))
+    jsonContent = load_json_of_swde_file(str(html_files[763]))
 
-    label_extraction(html_files[358], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
+    label_extraction(html_files[763], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
 

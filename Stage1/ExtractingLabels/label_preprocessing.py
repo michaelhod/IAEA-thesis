@@ -71,5 +71,3 @@ if __name__ == "__main__":
                         # print("Error, restarting pool and Chrome processes...")
                         # pool.shutdown(wait=True, cancel_futures=True)
                         # break
-            print("Restarting Selenium drivers...")
-            subprocess.run(r'taskkill /f /im chrome.exe /im chromedriver.exe', shell=True)
