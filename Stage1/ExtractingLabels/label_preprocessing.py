@@ -68,6 +68,3 @@ if __name__ == "__main__":
                         print(saved_to)
                     else:
                         print("Error, skipped and restarted Chrome...")
-                        # print("Error, restarting pool and Chrome processes...")
-                        # pool.shutdown(wait=True, cancel_futures=True)
-                        # break
