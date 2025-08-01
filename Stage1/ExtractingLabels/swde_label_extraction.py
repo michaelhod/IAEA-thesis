@@ -3,13 +3,15 @@ sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesi
 import json
 from pathlib import Path
 from typing import Dict
-from lxml import etree, html
+from lxml import etree
 import html as htm
-from Stage1.ExtractingGraphs.verifyGraphSize import verify_A_size
+from Stage1.ExtractingGraphs.verifyGraphSize import verify_A_size, import_npz
+from Stage1.ExtractingGraphs.HTMLtoGraph import EdgeFeatures
 from Stage1.tree_helpers import *
 import numpy as np
 from scipy import sparse
-import re
+import pandas as pd
+import random
 
 def load_json_of_swde_file(htmlFilepath: str):
     htmlFilepath = htmlFilepath.split("/") if "/" in htmlFilepath else htmlFilepath.split("\\")
@@ -32,6 +34,10 @@ def iterate_pairs(jsonFile, fileName: str):
             if value == "":
                 continue
             yield (parts[-1], value)
+
+def _import_bbox(csv_path):
+    df = pd.read_csv(csv_path, index_col=0)
+    return df.to_dict(orient="index")
 
 # Logic --------------------------------------------------------------
 
@@ -151,6 +157,101 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
+def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, int]]) -> tuple[list, list]:
+    """Outputs edge_index, edge_features"""
+    #Get everything needed for EdgeFeatures
+    index, nodes = bfs_index_map(tree)
+    node_list = []
+    for i, j in coords:
+        node_list.append(nodes[i])
+        node_list.append(nodes[j])
+
+    # Need X, bbox, XPaths and parent/depth maps
+    X = import_npz(dataPath / "X.npz")
+    bbox = _import_bbox(dataPath / "bbox.csv")
+    XPaths: Dict[etree._Element, str] = {}
+    for el in index:
+        xp = tree.getpath(el)
+        XPaths[el] = xp
+    parentMap, depthMap = build_parent_and_depth_maps(tree)
+
+    featurespositive = []
+    labelpositive = []
+    for i, j in coords:
+        featurespositive.append(EdgeFeatures(
+            edgeStart=i,
+            edgeEnd=j,
+            edgeStartNode=nodes[i],
+            edgeEndNode=nodes[j],
+            X=X,
+            bboxs=bbox,
+            parentMap=parentMap,
+            depthMap=depthMap,
+            XPaths=XPaths
+        ))
+        labelpositive.append(1)
+
+    maxhop = np.max([row[-5] for row in featurespositive])
+
+    featuresnegative = []
+    labelnegative = []
+    edgeIndexnegative = []
+    node_list_copy = node_list.copy()
+    candidateNodes = [i for i, _ in iter_elements_with_direct_text(tree)]
+
+    sinceLastAppended = 0
+    randomAdditions = 0
+    while len(featuresnegative) < 2*len(featurespositive) or sinceLastAppended > 1000:
+        sinceLastAppended+=1
+        node = random.choice(node_list_copy)
+        candidate = random.choice(candidateNodes)
+        nhops = compute_hops(node, candidate, parent_map=parentMap, depth_map=depthMap)
+
+        i, j = index[node], index[candidate]
+        if (i, j) in coords or (j, i) in coords:
+            continue
+        if nhops <= maxhop or randomAdditions < 0.02*len(featuresnegative):
+            if nhops > maxhop: randomAdditions+=1 
+            sinceLastAppended=0
+            
+            featuresnegative.append(EdgeFeatures(
+                edgeStart=i,
+                edgeEnd=j,
+                edgeStartNode=node,
+                edgeEndNode=candidate,
+                X=X,
+                bboxs=bbox,
+                parentMap=parentMap,
+                depthMap=depthMap,
+                XPaths=XPaths
+            ))
+            labelnegative.append(0)
+            edgeIndexnegative.append((i,j))
+
+            featuresnegative.append(EdgeFeatures(
+                edgeStart=j,
+                edgeEnd=i,
+                edgeStartNode=candidate,
+                edgeEndNode=node,
+                X=X,
+                bboxs=bbox,
+                parentMap=parentMap,
+                depthMap=depthMap,
+                XPaths=XPaths
+            ))
+            labelnegative.append(0)
+            edgeIndexnegative.append((j,i))
+
+            if np.random.random() < 0.5:
+                node_list_copy.remove(node)
+        
+        
+    
+    label_index = np.concat((coords, edgeIndexnegative))
+    label_features = np.concat((featurespositive, featuresnegative))
+    label_value = np.concat((labelpositive, labelnegative))
+    return label_index, label_features, label_value
+
 def _display_labels(tree, coords):
     """input tree of html and results of pairs"""
     _, nodes = bfs_index_map(tree)
@@ -165,49 +266,52 @@ def _display_labels(tree, coords):
         print(f"<{tag1}>{txt1}</{tag1}> -> <{tag2}>{txt2}</{tag2}>")#: \t\tSourceLine {line1} -> {line2}")
     print(len(coords))
 
-def label_extraction(htmlFile: Path, jsonContent, out_file:Path=None, verifyTreeAgainstFile=None, displayLabels=False) -> list[tuple]:
+def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, verifyTreeAgainstFile=False, displayLabels=False) -> list[tuple]:
 
     tree = load_html_as_tree(htmlFile)
     treeSize = sum(1 for _ in tree.iter())
 
     if verifyTreeAgainstFile:
-        verify_A_size(treeSize, verifyTreeAgainstFile)
+        verify_A_size(treeSize, dataPath  / "A.npz")
     
     htmlName = htmlFile.name
 
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
     coords = [(coord[0], coord[1]) for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int)]
 
+    if len(coords) == 0:
+        raise ValueError("nothing to save – no valid (int, int) pairs found")
+
+    label_index, label_features, label_value = _createLabels(dataPath, tree, coords)
+
     if displayLabels:
         _display_labels(tree, coords)
 
-    if out_file:
-        _save_coords_to_npz(coords, treeSize, out_file)
+    if save:
+        _save_coords_to_npz(label_index, label_features, label_value, dataPath)
 
-    return results
+    return results, label_index, label_features, label_value
 
-def _save_coords_to_npz(coords, graphSize, out_file: Path):
-    if not coords:
+def _save_coords_to_npz(label_index, label_features, label_value, dataPath: Path):
+    if len(label_index) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
     
-    mask = np.zeros((graphSize, graphSize), dtype=np.uint8)
-    for i, j in coords:
-        mask[i, j] = 1
-
-    mask = sparse.csr_matrix(mask)
-    sparse.save_npz(out_file, mask, compressed=True)
+    label_features = sparse.csr_matrix(label_features)
+    sparse.save_npz(dataPath / "labels.npz", label_features, compressed=True)
+    np.save(dataPath / "label_index.npy", label_index)
+    np.save(dataPath / "label_value.npy", label_value)
 
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("movie/movie/movie-imdb(2000)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-imdb(2000).json"
+    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-allmovie(2000).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    htmlAPath = ANCHORGRAPHS / TARGETFOLDER / html_files[763].with_suffix("").name / "A.npz"
+    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name
 
-    jsonContent = load_json_of_swde_file(str(html_files[763]))
+    jsonContent = load_json_of_swde_file(str(html_files[0]))
 
-    label_extraction(html_files[763], jsonContent, verifyTreeAgainstFile=htmlAPath, displayLabels=True)
+    label_extraction(html_files[0], jsonContent, dataPath, save=True, verifyTreeAgainstFile=True, displayLabels=True)
 

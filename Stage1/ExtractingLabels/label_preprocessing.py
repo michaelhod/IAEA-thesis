@@ -22,7 +22,6 @@ OUT_ROOT3.mkdir(parents=True, exist_ok=True)
 
 # ── worker ──────────────────────────────────────────────────────────────────────
 def process_file(filepath: Path, SRC: Path, OUT: Path, jsonAnswers=None) -> str | None:
-    time.sleep(0.1) # To be kind to computer
     # build a parallel directory structure under OUT_ROOT
     rel = filepath.relative_to(SRC)
     out_dir = (OUT / rel).with_suffix("")
@@ -37,7 +36,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path, jsonAnswers=None) -> str 
         jsonAnswers = load_json_of_swde_file(str(filepath))
 
     try:   
-        results = label_extraction(filepath, jsonAnswers, out_file=out_dir/"labels.npz", verifyTreeAgainstFile=out_dir/"A.npz")
+        results, _, _, _ = label_extraction(filepath, jsonAnswers, out_dir, save=True, verifyTreeAgainstFile=True)
 
         for result in results:
             if isinstance(result, str):

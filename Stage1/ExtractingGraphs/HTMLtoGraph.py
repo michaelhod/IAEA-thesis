@@ -1,10 +1,10 @@
 import sys
 sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
 import numpy as np
-from seleniumFunctions import get_bbox, get_selenium_html, open_selenium
+from Stage1.ExtractingGraphs.seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
 from pathlib import Path
-from safeHTMLTag import safe_name
+from Stage1.ExtractingGraphs.safeHTMLTag import safe_name
 from Stage1.tree_helpers import *
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
