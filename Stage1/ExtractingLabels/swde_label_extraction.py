@@ -201,14 +201,14 @@ def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, in
 
     sinceLastAppended = 0
     randomAdditions = 0
-    while len(featuresnegative) < 2*len(featurespositive) or sinceLastAppended > 1000:
+    while len(featuresnegative) < 2*len(featurespositive) and sinceLastAppended < 10000:
         sinceLastAppended+=1
         node = random.choice(node_list_copy)
         candidate = random.choice(candidateNodes)
         nhops = compute_hops(node, candidate, parent_map=parentMap, depth_map=depthMap)
 
         i, j = index[node], index[candidate]
-        if (i, j) in coords or (j, i) in coords:
+        if (i, j) in coords or (j, i) in coords or (i,j) in edgeIndexnegative or (j,i) in edgeIndexnegative:
             continue
         if nhops <= maxhop or randomAdditions < 0.02*len(featuresnegative):
             if nhops > maxhop: randomAdditions+=1 
@@ -266,26 +266,25 @@ def _display_labels(tree, coords):
         print(f"<{tag1}>{txt1}</{tag1}> -> <{tag2}>{txt2}</{tag2}>")#: \t\tSourceLine {line1} -> {line2}")
     print(len(coords))
 
-def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, verifyTreeAgainstFile=False, displayLabels=False) -> list[tuple]:
+def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, verifyTreeAgainstFile=False, displayLabels=False, displaynegativeLabels=False) -> list[tuple]:
 
     tree = load_html_as_tree(htmlFile)
     treeSize = sum(1 for _ in tree.iter())
-
     if verifyTreeAgainstFile:
         verify_A_size(treeSize, dataPath  / "A.npz")
     
     htmlName = htmlFile.name
-
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
-    coords = [(coord[0], coord[1]) for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int)]
-
+    coords = [pair for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int) for pair in ((coord[0], coord[1]),(coord[1], coord[0]))]
     if len(coords) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
 
     label_index, label_features, label_value = _createLabels(dataPath, tree, coords)
 
     if displayLabels:
-        _display_labels(tree, coords)
+        _display_labels(tree, label_index[:len(coords)])
+    if displaynegativeLabels:
+        _display_labels(tree, label_index[len(coords):])
 
     if save:
         _save_coords_to_npz(label_index, label_features, label_value, dataPath)
@@ -304,14 +303,14 @@ def _save_coords_to_npz(label_index, label_features, label_value, dataPath: Path
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-allmovie(2000).json"
+    TARGETFOLDER = Path("nbaplayer/nbaplayer/nbaplayer-slam(423)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/nbaplayer/nbaplayer/nbaplayer-slam(423).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name
+    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[335].with_suffix("").name
 
-    jsonContent = load_json_of_swde_file(str(html_files[0]))
+    jsonContent = load_json_of_swde_file(str(html_files[335]))
 
-    label_extraction(html_files[0], jsonContent, dataPath, save=True, verifyTreeAgainstFile=True, displayLabels=True)
+    label_extraction(html_files[335], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=True)
 

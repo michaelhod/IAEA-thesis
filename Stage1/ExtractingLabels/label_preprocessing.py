@@ -2,9 +2,7 @@ from swde_label_extraction import label_extraction, load_json_of_swde_file
 from pathlib import Path
 from itertools import repeat
 from concurrent.futures import ProcessPoolExecutor
-import subprocess
 import csv
-import time
 
 # ── paths ───────────────────────────────────────────────────────────────────────
 SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie/movie")
