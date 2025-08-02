@@ -1,0 +1,10 @@
+matplotlib==3.10.5
+numpy==2.3.2
+pillow==11.3.0
+scikit-learn==1.7.1
+scipy==1.16.1
+selenium==4.34.2
+torch==2.7.1
+torch-geometric==2.6.1
+tqdm==4.67.1
+urllib3==2.5.0
