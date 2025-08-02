@@ -64,4 +64,4 @@ if __name__ == "__main__":
                     if saved_to:
                         print(saved_to)
                     else:
-                        print("Error, skipped and restarted Chrome...")
+                        print("Error, skipped...")
