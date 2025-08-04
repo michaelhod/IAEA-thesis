@@ -157,6 +157,29 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
+def connectparents(tree, i, j):
+    nodeToindex, indexTonode = bfs_index_map(tree)
+    nodeiText, nodejText = get_node_text(indexTonode[i]), get_node_text(indexTonode[j])
+
+    parentsi = []
+    parenti = indexTonode[i]
+    while parenti is not None and get_node_text(parenti) == nodeiText:
+        parentsi.append(nodeToindex[parenti])
+        parenti = parenti.getparent()
+
+    parentsj = []
+    parentj = indexTonode[j]
+    while parentj is not None and get_node_text(parentj) == nodejText:
+        parentsj.append(nodeToindex[parentj])
+        parentj = parentj.getparent()
+
+    coords = []
+    for pi in parentsi:
+        for pj in parentsj:
+            coords.append((pi,pj))
+
+    return coords
+
 def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, int]]) -> tuple[list, list]:
     """Outputs edge_index, edge_features"""
     #Get everything needed for EdgeFeatures
@@ -201,7 +224,7 @@ def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, in
 
     sinceLastAppended = 0
     randomAdditions = 0
-    while len(featuresnegative) < 2*len(featurespositive) and sinceLastAppended < 10000:
+    while len(featuresnegative) < len(featurespositive) and sinceLastAppended < 10000:
         sinceLastAppended+=1
         node = random.choice(node_list_copy)
         candidate = random.choice(candidateNodes)
@@ -275,7 +298,10 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
     
     htmlName = htmlFile.name
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
-    coords = [pair for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int) for pair in ((coord[0], coord[1]),(coord[1], coord[0]))]
+    tempcoords = [pair for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int) for pair in ((coord[0], coord[1]),(coord[1], coord[0]))]
+    coords = []
+    for pair in tempcoords:
+        coords = coords + connectparents(tree, pair[0], pair[1])
     if len(coords) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
 
@@ -303,14 +329,14 @@ def _save_coords_to_npz(label_index, label_features, label_value, dataPath: Path
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("nbaplayer/nbaplayer/nbaplayer-slam(423)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/nbaplayer/nbaplayer/nbaplayer-slam(423).json"
+    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-allmovie(2000).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[335].with_suffix("").name
+    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name
 
-    jsonContent = load_json_of_swde_file(str(html_files[335]))
+    jsonContent = load_json_of_swde_file(str(html_files[0]))
 
-    label_extraction(html_files[335], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=True)
+    label_extraction(html_files[0], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)
 
