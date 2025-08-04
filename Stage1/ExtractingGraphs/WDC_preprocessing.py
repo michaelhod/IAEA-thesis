@@ -32,7 +32,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     with open(filepath, "rb") as fh:
         raw_bytes = fh.read()
     text = raw_bytes.decode("utf-8", "replace")
-    if text.count("itemscope") < 4:
+    if text.count("itemscope") < 3:
         return f"{out_dir} not enough itemscope"
     if "itemprop" not in text:
         return f"{out_dir} no itemprop"
@@ -90,7 +90,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
             writer = csv.writer(f)
             writer.writerow([filepath, e])
         #print(f"{filepath.absolute().resolve()}: {e}")
-        print(f"{filepath} errored {e.__class__()}")
+        print(f"{filepath} errored {e.__class__.__name__}")
         restart_Driver(JSDISABLED)
         return None
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         html_files = list(src.rglob("*.html"))
         np.random.shuffle(html_files)
         batchsize = len(html_files)
-        workers = 8
+        workers = 4
         for i in range(0, len(html_files), batchsize):
             batch = html_files[i:i+batchsize]
             with ProcessPoolExecutor(max_workers=workers, initializer=driver_init, initargs=(JSDISABLED,)) as pool:

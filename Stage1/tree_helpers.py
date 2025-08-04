@@ -140,6 +140,15 @@ def compute_hops(a: etree._Element, b: etree._Element,
         hops += 2
     return hops
 
+def get_direct_node_text(elem: etree._Element, normalised=False) -> str:
+    text = ""
+    if elem.text and elem.text.strip():
+        text += elem.text
+    for child in elem:
+        if child.tail and child.tail.strip():
+            text += child.tail
+    return text
+
 def get_node_text(node: etree._Element, normalised=False) -> str:
     txt = ''.join(node.itertext()).strip()
     if normalised:

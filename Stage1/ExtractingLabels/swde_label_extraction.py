@@ -35,7 +35,7 @@ def iterate_pairs(jsonFile, fileName: str):
                 continue
             yield (parts[-1], value)
 
-def _import_bbox(csv_path):
+def import_bbox(csv_path):
     df = pd.read_csv(csv_path, index_col=0)
     return df.to_dict(orient="index")
 
@@ -157,7 +157,21 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
-def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, int]]) -> tuple[list, list]:
+def connected(i, j, coords, nodeToindex, indexToNode):
+    """Checks if i, j are connected AND if i is connected to one of j's parent"""
+    ij_connected = (i,j) in coords or (j,i) in coords
+
+    nodej = indexToNode[j]
+    nodej = nodej.getparent()
+    while nodej is not None and not ij_connected:
+        j = nodeToindex[nodej]
+        ij_connected = ij_connected or (i,j) in coords or (j,i) in coords
+
+        nodej = nodej.getparent()
+
+    return ij_connected
+
+def createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, int]]) -> tuple[list, list]:
     """Outputs edge_index, edge_features"""
     #Get everything needed for EdgeFeatures
     index, nodes = bfs_index_map(tree)
@@ -168,7 +182,7 @@ def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, in
 
     # Need X, bbox, XPaths and parent/depth maps
     X = import_npz(dataPath / "X.npz")
-    bbox = _import_bbox(dataPath / "bbox.csv")
+    bbox = import_bbox(dataPath / "bbox.csv")
     XPaths: Dict[etree._Element, str] = {}
     for el in index:
         xp = tree.getpath(el)
@@ -208,7 +222,7 @@ def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, in
         nhops = compute_hops(node, candidate, parent_map=parentMap, depth_map=depthMap)
 
         i, j = index[node], index[candidate]
-        if (i, j) in coords or (j, i) in coords or (i,j) in edgeIndexnegative or (j,i) in edgeIndexnegative:
+        if connected(i, j, coords, index, nodes) or connected(j, i, coords, index, nodes) or (i,j) in edgeIndexnegative or (j,i) in edgeIndexnegative:
             continue
         if nhops <= maxhop or randomAdditions < 0.02*len(featuresnegative):
             if nhops > maxhop: randomAdditions+=1 
@@ -279,7 +293,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
     if len(coords) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
 
-    label_index, label_features, label_value = _createLabels(dataPath, tree, coords)
+    label_index, label_features, label_value = createLabels(dataPath, tree, coords)
 
     if displayLabels:
         display_labels(tree, label_index[:len(coords)])
@@ -287,11 +301,11 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
         display_labels(tree, label_index[len(coords):])
 
     if save:
-        _save_coords_to_npz(label_index, label_features, label_value, dataPath)
+        save_coords_to_npz(label_index, label_features, label_value, dataPath)
 
     return results, label_index, label_features, label_value
 
-def _save_coords_to_npz(label_index, label_features, label_value, dataPath: Path):
+def save_coords_to_npz(label_index, label_features, label_value, dataPath: Path):
     if len(label_index) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
     
