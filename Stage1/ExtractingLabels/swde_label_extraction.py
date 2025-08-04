@@ -252,7 +252,7 @@ def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, in
     label_value = np.concat((labelpositive, labelnegative))
     return label_index, label_features, label_value
 
-def _display_labels(tree, coords):
+def display_labels(tree, coords):
     """input tree of html and results of pairs"""
     _, nodes = bfs_index_map(tree)
     for i,j in coords:
@@ -282,9 +282,9 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
     label_index, label_features, label_value = _createLabels(dataPath, tree, coords)
 
     if displayLabels:
-        _display_labels(tree, label_index[:len(coords)])
+        display_labels(tree, label_index[:len(coords)])
     if displaynegativeLabels:
-        _display_labels(tree, label_index[len(coords):])
+        display_labels(tree, label_index[len(coords):])
 
     if save:
         _save_coords_to_npz(label_index, label_features, label_value, dataPath)

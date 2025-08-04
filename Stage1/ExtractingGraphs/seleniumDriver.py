@@ -15,6 +15,7 @@ def driver_init(disableJS=True): #This is temporary to get the swde set to work.
     TMP_PROFILE = tempfile.mkdtemp(prefix="ch_")
 
     opts = webdriver.ChromeOptions()
+    opts.page_load_strategy = "eager"
     opts.add_argument("--headless=new")
     if disableJS:
         prefs = {"profile.managed_default_content_settings.javascript": 2}
@@ -25,7 +26,7 @@ def driver_init(disableJS=True): #This is temporary to get the swde set to work.
     opts.add_argument("--disable-application-cache")
     opts.add_argument("--media-cache-size=0")
     DRIVER = webdriver.Chrome(options=opts)
-    DRIVER.command_executor.set_timeout(60)
+    DRIVER.command_executor.set_timeout(20)
     if disableJS:
         DRIVER.set_network_conditions(offline=True, latency=5, throughput=0)
 

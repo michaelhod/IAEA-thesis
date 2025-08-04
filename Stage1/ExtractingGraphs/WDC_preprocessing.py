@@ -12,19 +12,12 @@ import pandas as pd
 import csv
 
 # ── paths ───────────────────────────────────────────────────────────────────────
-SRC_FOLDER1 = Path("./data/swde/sourceCode/sourceCode/movie/movie")
-SRC_FOLDER2 = Path("./data/swde/sourceCode/sourceCode/nbaplayer/nbaplayer")
-SRC_FOLDER3 = Path("./data/swde/sourceCode/sourceCode/university/university")
-OUT_ROOT1   = Path("./data/swde_HTMLgraphs/movie/movie")
-OUT_ROOT2   = Path("./data/swde_HTMLgraphs/nbaplayer/nbaplayer")
-OUT_ROOT3   = Path("./data/swde_HTMLgraphs/university/university")
-OUT_ROOT1.mkdir(parents=True, exist_ok=True)
-OUT_ROOT2.mkdir(parents=True, exist_ok=True)
-OUT_ROOT3.mkdir(parents=True, exist_ok=True)
-# SRC_FOLDER_WDC = Path("./data/wdc_microdata_html")
-# OUT_ROOT_WDC = Path("./data/wdc_microdata_HTMLgraphs")
-# OUT_ROOT_WDC.mkdir(parents=True, exist_ok=True)
-JSDISABLED = True
+SRC_FOLDER_WDC = Path("./data/wdc_microdata_html")
+OUT_ROOT_WDC = Path("./data/wdc_microdata_HTMLgraphs")
+OUT_ROOT_WDC.mkdir(parents=True, exist_ok=True)
+JSDISABLED = False
+skipped = np.unique(pd.read_csv("./data/skipped.csv", header=None, usecols=[0], encoding="latin-1").to_numpy())
+SKIPPEDFILES = [Path(x) for x in skipped]
 
 # ── worker ──────────────────────────────────────────────────────────────────────
 def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
@@ -34,10 +27,22 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
 
     if (out_dir/"A.npz").exists():
         return f"{out_dir} already written"
-
+    elif filepath in SKIPPEDFILES:
+        return f"{out_dir} already skipped"
+    with open(filepath, "rb") as fh:
+        raw_bytes = fh.read()
+    text = raw_bytes.decode("utf-8", "replace")
+    if text.count("itemscope") < 4:
+        return f"{out_dir} not enough itemscope"
+    if "itemprop" not in text:
+        return f"{out_dir} no itemprop"
     try:
-        A, X, E, edge_index, bbox = html_to_graph(filepath, get_Driver(), OverwriteHTML=False)
+        A, X, E, edge_index, bbox = html_to_graph(filepath, get_Driver(), OverwriteHTML=True)
         
+        with open('./data/overwritten.csv', 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow([filepath])
+
         out_dir.mkdir(parents=True, exist_ok=True)
         # save arrays
         A = sparse.csr_matrix(A)
@@ -57,7 +62,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
     #     try:
     #         A, X, E, edge_index = html_to_graph(filepath, get_Driver(), OverwriteHTML=True)
             
-    #         out_dir.mkdir(parents=True, exist_ok=True)
+    #         out_dir.mkdir(parents=True, exist_ok=True)        
     #         with open('./data/overwritten.csv', 'a') as f:
     #             writer = csv.writer(f)
     #             writer.writerow(filepath)
@@ -84,14 +89,16 @@ def process_file(filepath: Path, SRC: Path, OUT: Path) -> str | None:
         with open('./data/skipped.csv', 'a') as f:
             writer = csv.writer(f)
             writer.writerow([filepath, e])
-        print(f"{filepath.absolute().resolve()}: {e}")
+        #print(f"{filepath.absolute().resolve()}: {e}")
+        print(f"{filepath} errored {e.__class__()}")
         restart_Driver(JSDISABLED)
         return None
 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
-        html_files = list(src.rglob("*.htm"))
+    for src, out in zip([SRC_FOLDER_WDC],[OUT_ROOT_WDC]):
+        html_files = list(src.rglob("*.html"))
+        np.random.shuffle(html_files)
         batchsize = len(html_files)
         workers = 8
         for i in range(0, len(html_files), batchsize):
