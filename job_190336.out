@@ -1,0 +1,5 @@
+/var/spool/slurm/d/job190336/slurm_script: line 11: /vol/bitbucket/mjh24/.venv/bin/activate: No such file or directory
+Traceback (most recent call last):
+  File "/vol/bitbucket/mjh24/IAEA-thesis/GAT.py", line 8, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'

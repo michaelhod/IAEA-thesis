@@ -24,9 +24,8 @@ import copy
 from torch.nn.functional import binary_cross_entropy_with_logits as BCEwLogits
 if torch.cuda.is_available():
     torch.cuda.current_device()
-get_ipython().run_line_magic('env', 'CUDA_LAUNCH_BLOCKING=1')
 
-datafile = "/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs.tar"
+datafile = "/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs_parent_label.tar"
 
 plt.ion()
 
@@ -668,7 +667,7 @@ N = len(dataset)
 # n_train = int(0.95 * N)
 # n_val   = N - n_train
 # train_ds, val_ds = random_split(dataset, [n_train, n_val])
-val_start, val_end = dataset.get_sublen('movie-allmovie(2000)')
+val_start, val_end = dataset.get_sublen('movie-amctv(2000)')
 val_idx = list(range(val_start, val_end))  
 train_idx = list(set(range(N)) - set(val_idx))
 train_ds = Subset(dataset, train_idx)
@@ -695,5 +694,5 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 
 #Save model
-torch.save(model.state_dict(), "modelbatch250epoch.pt")
+torch.save(model.state_dict(), "modelnewdata.pt")
 
