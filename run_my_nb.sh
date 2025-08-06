@@ -7,8 +7,8 @@
 #SBATCH --output=job_%j.out           # %j = job-ID
 
 # 1--Set up environment
-export PATH=/vol/bitbucket/mjh24/.venv/bin:$PATH
-source /vol/bitbucket/mjh24/.venv/bin/activate
+export PATH=/vol/bitbucket/mjh24/IAEA-thesis/.venv/bin:$PATH
+source /vol/bitbucket/mjh24/IAEA-thesis/.venv/bin/activate
 . /vol/cuda/12.0.0/setup.sh           # matches current PyTorch wheels
 
 # 2--Run your notebook (now a .py)
