@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 from Stage1.ExtractingGraphs.safeHTMLTag import safe_name
 from Stage1.tree_helpers import *
+import torch
+from torch_geometric.data import Data
+import torch_geometric.transforms as T
 
 TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 
@@ -14,7 +17,7 @@ def saveHTML(filepath, html):
         f.write(html)
 
 def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, parentMap, depthMap, XPaths):
-    features = [0]*(2*len(TAGSOFINTEREST)+7)
+    features = [0]*(2*len(TAGSOFINTEREST)+10)
 
     # Copy all X features for each node
     for i in range(len(TAGSOFINTEREST)+1):
@@ -22,18 +25,76 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, paren
     for i in range(len(TAGSOFINTEREST)+1):
         features[i+len(TAGSOFINTEREST)+1] = X[edgeEnd, i]
     # Num hops between nodes
-    features[-5] = compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap)
+    features[-8] = np.log1p(compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap))
+    
     # Distances between nodes
     edgeEndXPath = XPaths[edgeEndNode]
     edgeStartXPath = XPaths[edgeStartNode]
-    features[-4] = bboxs[edgeEndXPath]["x"]-bboxs[edgeStartXPath]["x"]
-    features[-3] = bboxs[edgeEndXPath]["y"]-bboxs[edgeStartXPath]["y"]
-    features[-2] = bboxs[edgeEndXPath]["width"]-bboxs[edgeStartXPath]["width"]
-    features[-1] = bboxs[edgeEndXPath]["height"]-bboxs[edgeStartXPath]["height"]
+    vH = bboxs["/html"]["height"]+1e-9 #For generalisability
+    vW = bboxs["/html"]["width"]+1e-9
+    centrexStart = bboxs[edgeStartXPath]["x"] + bboxs[edgeStartXPath]["width"]/2.0
+    centrexEnd = bboxs[edgeEndXPath]["x"] + bboxs[edgeEndXPath]["width"]/2.0
+    centreyStart = bboxs[edgeStartXPath]["y"] + bboxs[edgeStartXPath]["height"]/2.0
+    centreyEnd = bboxs[edgeEndXPath]["y"] + bboxs[edgeEndXPath]["height"]/2.0
+    
+    features[-7] = (centrexEnd-centrexStart)/vW
+    features[-6] = (centreyEnd-centreyStart)/vH
+    features[-5] = np.arctan2(centreyEnd-centreyStart, centrexEnd-centrexStart)
+    features[-4] = np.log(np.clip(bboxs[edgeEndXPath]["width"]/(1e-9+bboxs[edgeStartXPath]["width"]), 1e-3, 1e3)) # Normalisation
+    features[-3] = np.log(np.clip(bboxs[edgeEndXPath]["height"]/(1e-9+bboxs[edgeStartXPath]["height"]), 1e-3, 1e3))
+    features[-2] = (bboxs[edgeEndXPath]["width"]-bboxs[edgeStartXPath]["width"])/vW
+    features[-1] = (bboxs[edgeEndXPath]["height"]-bboxs[edgeStartXPath]["height"])/vH
 
     return features
 
-def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def add_positional_encodings(X_np, edge_index_np, k_lap=8, rw_len=6):
+    """
+    X_np:          (N, D) numpy.float32
+    edge_index_np: (E, 2) numpy.int64  (list of (u,v) pairs)
+    returns:       X_with_pe as numpy (N, D + pe_dim)
+    """
+    # 1) to torch (CPU)
+    x = torch.from_numpy(X_np).float()
+    edge_index = torch.from_numpy(edge_index_np).long().t().contiguous()  # -> [2, E]
+
+    # 2) add PEs (concats to x when attr_name=None)
+    data = Data(x=x, edge_index=edge_index, num_nodes=x.size(0))
+    if k_lap > 0:
+        data = T.AddLaplacianEigenvectorPE(k=k_lap, attr_name=None)(data)
+    data = T.AddRandomWalkPE(walk_length=rw_len, attr_name=None)(data)
+
+    # 3) back to numpy
+    return data.x.cpu().numpy()
+
+def add_depth_deg(X, depthMap, edge_index, N, nodes):
+    # 2) Depth per node (float)
+    depth = np.zeros(N, dtype=np.float32)
+    for el, i in nodes.items():
+        depth[i] = float(depthMap[el])
+    depth = np.log1p(depth) #scale-free, therefore hopefully generalize better
+
+    # 3) In/out degree from directed edges you created
+    if edge_index.size:
+        out_deg = np.bincount(edge_index[:, 0], minlength=N).astype(np.float32)
+        in_deg  = np.bincount(edge_index[:, 1], minlength=N).astype(np.float32)
+    else:
+        out_deg = np.zeros(N, dtype=np.float32)
+        in_deg  = np.zeros(N, dtype=np.float32)
+    in_deg, out_deg = np.log1p(in_deg), np.log1p(out_deg) #scale-free, therefore hopefully generalize better
+
+    # 4) is_leaf flag from DOM structure (no element-children present in `nodes`)
+    is_leaf = np.zeros(N, dtype=np.float32)
+    for el, i in nodes.items():
+        child_has_index = any((ch in nodes) for ch in el)  # only count elements present in `nodes`
+        is_leaf[i] = 0.0 if child_has_index else 1.0
+
+    # 5) Concatenate to X (adds 4 columns: depth, in_deg, out_deg, is_leaf)
+    return np.concatenate(
+        [X, np.column_stack([depth, in_deg, out_deg, is_leaf]).astype(np.float32)],
+        axis=1
+    )
+
+def html_to_graph(filepath: Path, driver, OverwriteHTML=False):
     # 1. Parse -----------------------------------------------------------------
     tree = load_html_as_tree(filepath)
     
@@ -110,6 +171,10 @@ def html_to_graph(filepath: Path, driver, OverwriteHTML=False) -> tuple[np.ndarr
 
     edge_index = np.array(edge_list)
     E = np.array(edge_features)
+
+    #Some final additions to X
+    X = add_positional_encodings(X, edge_index, k_lap=8, rw_len=6)
+    X = add_depth_deg(X, depthMap, edge_index, N, nodes)
 
     if OverwriteHTML: #Replace the HTML with what selenium sees
         saveHTML(filepath, html)

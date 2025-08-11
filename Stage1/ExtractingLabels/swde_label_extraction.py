@@ -73,7 +73,7 @@ def _find_matches(tree: etree._ElementTree, needle: str, depth_map):
     if not substr_candidates:
         return []  # nothing at all
 
-    substr_candidates.sort(key=lambda el: depth_map.get(el, 0), reverse=True)
+    substr_candidates.sort(key=lambda tup: depth_map.get(tup[0], 0), reverse=True)
 
     results = []
     seen = set()
@@ -214,7 +214,10 @@ def _createLabels(dataPath, tree: etree._ElementTree, coords: list[tuple[int, in
         ))
         labelpositive.append(1)
 
-    maxhop = np.max([row[-5] for row in featurespositive])
+    maxhop = 0
+    for (i, j) in coords:
+        h = compute_hops(nodes[i], nodes[j], parentMap, depthMap)
+        if h > maxhop: maxhop = h
 
     featuresnegative = []
     labelnegative = []
