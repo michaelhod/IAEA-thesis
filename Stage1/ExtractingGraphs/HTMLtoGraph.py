@@ -94,11 +94,13 @@ def add_depth_deg(X, depthMap, edge_index, N, nodes):
         axis=1
     )
 
-def html_to_graph(filepath: Path, driver, OverwriteHTML=False):
+def html_to_graph(filepath: Path, driver, OverwriteHTML=False, urlToOpen=None):
     # 1. Parse -----------------------------------------------------------------
+    urlToOpen = Path(filepath).resolve().as_uri() if not urlToOpen else urlToOpen
+    
     tree = load_html_as_tree(filepath)
     
-    open_selenium(filepath, driver)
+    open_selenium(urlToOpen, driver)
     if OverwriteHTML:
         html = get_selenium_html(driver=driver)
         tree = load_htmlstr_as_tree(html)

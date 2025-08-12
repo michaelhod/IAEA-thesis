@@ -39,8 +39,11 @@ def get_Driver():
     return DRIVER
 
 def restart_Driver(disableJS=True):
+    quit_driver()
+    driver_init(disableJS=disableJS)
+
+def quit_driver():
     global DRIVER
-    
+
     DRIVER.quit()
     DRIVER = None
-    driver_init(disableJS=disableJS)

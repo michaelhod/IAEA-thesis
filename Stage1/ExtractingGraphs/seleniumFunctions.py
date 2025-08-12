@@ -6,9 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from pathlib import Path
 
-def open_selenium(filepath: str, driver):
-    local_file = Path(filepath).resolve()
-    url = local_file.as_uri()
+def open_selenium(url: str, driver):
     driver.get(url)
 
     # explicitly wait for the page to load
