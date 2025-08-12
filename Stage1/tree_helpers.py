@@ -15,7 +15,7 @@ warnings.filterwarnings(
     else html5lib._ihatexml.DataLossWarning
 )
 
-TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
+TAGSOFINTEREST = json.load(open("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 ALLOWED_TAGS = set(TAGSOFINTEREST.keys())
 
 _ILLEGAL_CTRL = re.compile(r'&#(?:0*([0-9]+)|x0*([0-9a-fA-F]+));')

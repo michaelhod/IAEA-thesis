@@ -48,13 +48,7 @@ def default_filename(url: str) -> Path:
     return target
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python Download.py <url>", file=sys.stderr)
-        sys.exit(1)
-
-    url, max_pages = parse()
-
+def main(url, max_pages, outputPath=None):
     base_host = urlparse(url).netloc
     url_queue = deque([url])
     visited = set()
@@ -70,7 +64,7 @@ def main():
             continue
 
         clean_url = url.split('#',1)[0].split('?',1)[0] #Removes characters windows does not allow in filenames
-        outfile = default_filename(clean_url)
+        outfile = outputPath if outputPath else default_filename(clean_url)
         outfile.write_text(html, encoding="utf-8")
         print(f"Saved {url} → {outfile.resolve()}")
 
@@ -85,4 +79,9 @@ def main():
             break
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("Usage: python Download.py <url>", file=sys.stderr)
+        sys.exit(1)
+    url, max_pages = parse()
+
+    main(url, max_pages)

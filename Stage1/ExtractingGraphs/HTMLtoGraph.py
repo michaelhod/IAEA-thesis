@@ -10,7 +10,7 @@ import torch
 from torch_geometric.data import Data
 import torch_geometric.transforms as T
 
-TAGSOFINTEREST = json.load(open("Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
+TAGSOFINTEREST = json.load(open("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 
 def saveHTML(filepath, html):
     with filepath.open("w", encoding="utf-8") as f:
