@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import re
 import warnings, html5lib
+from urllib.parse import urlparse, urljoin
 
 warnings.filterwarnings(
     "ignore",
@@ -150,6 +151,60 @@ def normalise_text(txt:str) -> str:
     txt = html.unescape(txt).lower().replace("\r","\n") # normaluse carridge return
     txt = re.sub(r"[^a-z0-9]+", "", txt.lower())
     return txt
+
+def remove_external_a(tree, url):
+    root = tree.getroot()
+
+    def _norm_host(h):
+        if not h:
+            return ''
+        h = h.lower()
+        if h.startswith('www.'):
+            h = h[4:]
+        try:
+            h = h.encode('idna').decode('ascii')  # IDN → punycode
+        except Exception:
+            pass
+        return h
+
+    base_host = _norm_host(urlparse(url).hostname or urlparse(url).netloc)
+
+    if base_host == "":
+        return 0
+
+    removed = 0
+    # Walk bottom-up so removals don't disturb iteration
+    for elem in reversed(list(root.iter())):
+        if not isinstance(elem.tag, str):continue
+        if elem.tag.lower() != "a":continue
+
+        href = elem.get("href")
+        if not href:continue
+
+        link = urljoin(url, href)  # resolve relative → absolute (ignoring <base>)
+        p = urlparse(link)
+
+        # Non-http(s) schemes are treated as external
+        if p.scheme and p.scheme not in ("http", "https"):
+            parent = elem.getparent()
+            if parent is not None:
+                parent.remove(elem)
+                removed += 1
+            continue
+
+        host = _norm_host(p.hostname or p.netloc)
+
+        # Same-domain if exact host OR a proper subdomain (boundary-checked)
+        same_domain = (host == base_host) or (base_host and host.endswith("." + base_host))
+
+        if not same_domain:
+            parent = elem.getparent()
+            if parent is not None:
+                parent.remove(elem)
+                removed += 1
+
+    return removed
+
 
 # Debugging helpers --------------------------------------------------------------------------------------------------------------------
 

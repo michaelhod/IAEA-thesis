@@ -1,7 +1,9 @@
-from lxml import html
-import io
+import sys
+sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
+from Stage1.tree_helpers import *
 
 BLOCKS = {'p','li','dt','dd','blockquote','pre','h1','h2','h3','h4','h5','h6','figcaption'}
+LEFTOVER = {'td'}
 SKIP   = {'script','style','noscript','template'}
 
 # --- helpers ---------------------------------------------------------------
@@ -24,7 +26,7 @@ def hidden_by_inline_style(el):
     return False
 
 def non_empty_text(el):
-    txt = ' '.join(el.itertext()).strip()
+    txt = get_node_text(el)
     return bool(txt)
 
 def xpath_of(el):
@@ -38,6 +40,10 @@ def is_inside_any(el, containers_set):
             return True
         p = p.getparent()
     return False
+
+def is_ancestor_of_any(el, block_containers):
+    return any(is_inside_any(bc, {el}) for bc in block_containers)
+
 
 def anchor_is_block_like(a, block_containers):
     """
@@ -74,15 +80,34 @@ def anchor_is_block_like(a, block_containers):
 
     return False
 
+def is_deepest_td_with_text(td_el):
+    """True if td_el has text and no descendant <td> with text (ignoring hidden)."""
+    if not non_empty_text(td_el):
+        return False
+    for d in td_el.findall('.//td'):
+        if not isinstance(d.tag, str):
+            continue
+        if hidden_by_inline_style(d):
+            continue
+        if non_empty_text(d):
+            return False
+    return True
+
 # --- main extractor --------------------------------------------------------
 
-def extract_chunk_xpaths(html_text, include_text=False):
+def extract_chunk_xpaths(html_path, safeurl, include_text=False):
     """
     Return XPaths of chunk-defining elements:
       - block containers (p, li, blockquote, pre, headings, figcaption)
       - 'line-like' anchors as defined in anchor_is_block_like()
     """
-    doc = html.fromstring(html_text)
+    # with io.open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+    #     html_text = f.read()
+    # doc = html.fromstring(html_text)
+
+    tree = load_html_as_tree(html_path)
+
+    #remove_external_a(tree, safeurl)
 
     results = []
     seen = set()            # for XPath de-dupe
@@ -101,7 +126,7 @@ def extract_chunk_xpaths(html_text, include_text=False):
 
     # 1) Block containers
     for tag in BLOCKS:
-        for el in doc.findall('.//' + tag):
+        for el in tree.findall('.//' + tag):
             if not isinstance(el.tag, str):     # skip comments/PIs
                 continue
             if el.tag.lower() in SKIP:
@@ -113,8 +138,22 @@ def extract_chunk_xpaths(html_text, include_text=False):
             block_containers.add(el)
             push(el, 'block')
 
+    # 1.5) Leftovers IF they havent been picked up
+    for tag in LEFTOVER:
+        for el in tree.findall('.//' + tag):
+            if is_inside_any(el, block_containers):
+                continue
+            if is_ancestor_of_any(el, block_containers):
+                continue
+            if el.tag.lower() == "td" and not is_deepest_td_with_text(el):
+                continue
+            if el.tag.lower() == "span":
+                print(get_node_text(el))
+            block_containers.add(el)
+            push(el, 'l-over')
+
     # 2) "Line-like" anchors outside the captured blocks
-    for a in doc.findall('.//a'):
+    for a in tree.findall('.//a'):
         if not isinstance(a.tag, str):
             continue
         if hidden_by_inline_style(a):
@@ -131,8 +170,6 @@ def extract_chunk_xpaths(html_text, include_text=False):
 # --- example usage ---------------------------------------------------------
 if __name__ == "__main__":
     path = "C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\data\\swde\\sourceCode\\sourceCode\\movie\\movie\\movie-allmovie(2000)\\0000.htm"
-    with io.open(path, "r", encoding="utf-8", errors="ignore") as f:
-        html_text = f.read()
-    xps = extract_chunk_xpaths(html_text, include_text=True)
+    xps = extract_chunk_xpaths(path, include_text=True)
     for item in xps:
         print(item['type'].ljust(6), item['xpath'], "=>", item['text'][:90])
