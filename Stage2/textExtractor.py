@@ -107,7 +107,7 @@ def extract_chunk_xpaths(html_path, safeurl, include_text=False):
 
     tree = load_html_as_tree(html_path)
 
-    #remove_external_a(tree, safeurl)
+    remove_external_a(tree, safeurl)
 
     results = []
     seen = set()            # for XPath de-dupe
