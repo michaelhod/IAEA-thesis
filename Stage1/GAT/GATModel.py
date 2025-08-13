@@ -75,6 +75,15 @@ class GraphAttentionNetwork(nn.Module):
             nn.Linear(hidden3, 1)
         )
 
+        # ── Node (title) head ─────────────────────────────────────────────
+        # Scores each node independently; softmax over nodes is applied in the loss.
+        self.title_head = nn.Sequential(
+            nn.Linear(hidden3, hidden3),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden3, 1)
+        )
+
         # init beta gate around 0.5 to avoid identity lock
         for tr in (self.tr1, self.tr2):
             if getattr(tr, "lin_beta", None) is not None:
@@ -93,7 +102,8 @@ class GraphAttentionNetwork(nn.Module):
         E_edge_attr: torch.Tensor,    # (N_E, 197)             sparse features
         E_attr_dropout=0.0,            # Probability of dropping out a whole edge_attr when training
         E_attr_include=True,
-        A_attr_include=True
+        A_attr_include=True,
+        return_title = False
     ):
         # 1) node features
         x_dense = x_sparse.to_dense()
@@ -126,4 +136,11 @@ class GraphAttentionNetwork(nn.Module):
         # 4) gather node embeddings and classify
         src, dst = E_edge_index
         z = torch.cat([h[src], h[dst], E_edge_emb], dim=1)      # (N_E , 72)
-        return self.edge_mlp(z).squeeze(-1)                   # (N_E ,) returns the logits
+        edge_logits = self.edge_mlp(z).squeeze(-1)                   # (N_E ,) returns the logits
+    
+        # 5) Title node scores (one scalar per node)
+        title_logits = self.title_head(h).squeeze(-1)  # (N,)
+
+        # Backward-compatible: only return title logits if asked
+        # Add a keyword arg to the signature: return_title: bool = False
+        return (edge_logits, title_logits) if return_title else edge_logits

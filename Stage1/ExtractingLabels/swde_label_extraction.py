@@ -157,6 +157,18 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
 
+def _get_title(tree, titletxt):
+    _, depth_map = build_parent_and_depth_maps(tree)
+    bfs_indices, _ = bfs_index_map(tree)
+    
+    nodes_right = _find_matches(tree, titletxt, depth_map)
+    nodes_right = set(_find_exact_matches(nodes_right, titletxt))
+    
+    for el in tree.iter():                # document order (finds first occurance in document)
+        if el in nodes_right:
+            return bfs_indices[el]
+    return -1 
+
 def connectparents(tree, i, j):
     nodeToindex, indexTonode = bfs_index_map(tree)
     nodeiText, nodejText = get_node_text(indexTonode[i]), get_node_text(indexTonode[j])
@@ -300,6 +312,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
         verify_A_size(treeSize, dataPath  / "A.npz")
     
     htmlName = htmlFile.name
+    titleNodeIdx = [_get_title(tree, titletxt) for left, titletxt in iterate_pairs(jsonContent, htmlName) if left=="topic_entity_name"]
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
     tempcoords = [pair for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int) for pair in ((coord[0], coord[1]),(coord[1], coord[0]))]
     coords = []
@@ -318,7 +331,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
     if save:
         _save_coords_to_npz(label_index, label_features, label_value, dataPath)
 
-    return results, label_index, label_features, label_value
+    return results, label_index, label_features, label_value, titleNodeIdx
 
 def _save_coords_to_npz(label_index, label_features, label_value, dataPath: Path):
     if len(label_index) == 0:
