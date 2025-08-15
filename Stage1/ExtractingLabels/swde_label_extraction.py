@@ -337,7 +337,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
 def _save_coords_to_npz(label_index, label_features, label_value, titleNodeIdx, dataPath: Path):
     if len(label_index) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
-    if len(titleNodeIdx[0]) == -1:
+    if titleNodeIdx[0] == -1:
         print("No title found")
 
     label_features = sparse.csr_matrix(label_features)
@@ -349,14 +349,14 @@ def _save_coords_to_npz(label_index, label_features, label_value, titleNodeIdx, 
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-allmovie(2000).json"
+    TARGETFOLDER = Path("university/university/university-matchcollege(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/university/university/university-matchcollege(2000).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name
+    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[135].with_suffix("").name
 
-    jsonContent = load_json_of_swde_file(str(html_files[0]))
+    jsonContent = load_json_of_swde_file(str(html_files[135]))
 
-    label_extraction(html_files[0], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)
+    label_extraction(html_files[135], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)
 
