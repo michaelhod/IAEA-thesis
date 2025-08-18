@@ -13,10 +13,11 @@ from pathlib import Path
 from scipy import sparse
 import numpy as np
 from collections import defaultdict
+import pandas as pd
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def main(htmlFilePath, url, model, specific_node_txt=""):
+def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConvertedToGraph=""):
     """
     Returns predicted edges given htmlFilePath and model
     URL is used to remove external links from predictions
@@ -27,15 +28,24 @@ def main(htmlFilePath, url, model, specific_node_txt=""):
     """
 
     # %%
-    driver_init(True)
-    restart_Driver(True)
-    _, X_npy, E_sparse, edge_index, bbox = html_to_graph(htmlFilePath, get_Driver())
-    quit_driver()
-    X_sparse = sparse.csr_matrix(X_npy)
-    E_sparse = sparse.csr_matrix(E_sparse)
+    if len(alreadyConvertedToGraph) > 0:
+        X_sparse = sparse.load_npz(alreadyConvertedToGraph+"\\X.npz").tocsr()
+        X_npy = X_sparse.toarray()
+        E_sparse = sparse.load_npz(alreadyConvertedToGraph+"\\E.npz").tocsr()
+
+        df = pd.read_csv(alreadyConvertedToGraph+"\\bbox.csv", index_col=0)
+        bbox = df.to_dict(orient="index")
+        edge_index = np.load(alreadyConvertedToGraph + "\\edge_index.npy")
+    else:
+        driver_init(True)
+        restart_Driver(True)
+        _, X_npy, E_sparse, edge_index, bbox = html_to_graph(htmlFilePath, get_Driver())
+        quit_driver()
+        X_sparse = sparse.csr_matrix(X_npy)
+        E_sparse = sparse.csr_matrix(E_sparse)
 
     # %%
-    def get_all_candidate_edges(filepath, safeurl, X_npy):
+    def get_all_candidate_edges(filepath, X_npy, safeurl=""):
         xpaths = extract_chunk_xpaths(filepath, safeurl)
         tree = load_html_as_tree(filepath)
         node2index, index2node = bfs_index_map(tree)
@@ -120,7 +130,7 @@ def main(htmlFilePath, url, model, specific_node_txt=""):
     if len(specific_node_txt) > 0:
         label_index, label_features = get_specific_candidate_edges(htmlFilePath, specific_node_txt, X_npy)
     else:    
-        label_index, label_features = get_all_candidate_edges(htmlFilePath, url, X_npy)
+        label_index, label_features = get_all_candidate_edges(htmlFilePath, X_npy, safeurl)
     label_features = sparse.csr_matrix(label_features)
 
     # %%
@@ -146,7 +156,7 @@ def main(htmlFilePath, url, model, specific_node_txt=""):
     # %%
     order = np.argsort(probs.squeeze().tolist())[::-1]
     sorted_label_index = label_index[order]
-    print(np.sort(probs.squeeze().tolist()))
+    
     # Build a mapping from tuple to its position for fast lookup
     pair_to_pos = {tuple(pair): idx for idx, pair in enumerate(sorted_label_index)}
     avg_pos = []

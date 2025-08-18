@@ -95,7 +95,7 @@ def is_deepest_td_with_text(td_el):
 
 # --- main extractor --------------------------------------------------------
 
-def extract_chunk_xpaths(html_path, safeurl, include_text=False):
+def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
     """
     Return XPaths of chunk-defining elements:
       - block containers (p, li, blockquote, pre, headings, figcaption)
@@ -106,8 +106,9 @@ def extract_chunk_xpaths(html_path, safeurl, include_text=False):
     # doc = html.fromstring(html_text)
 
     tree = load_html_as_tree(html_path)
-
-    remove_external_a(tree, safeurl)
+    
+    if len(safeurl) > 0:
+        remove_external_a(tree, safeurl)
 
     results = []
     seen = set()            # for XPath de-dupe

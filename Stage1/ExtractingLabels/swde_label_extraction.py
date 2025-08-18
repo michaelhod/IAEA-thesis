@@ -13,9 +13,9 @@ from scipy import sparse
 import pandas as pd
 import random
 
-def load_json_of_swde_file(htmlFilepath: str):
+def load_json_of_swde_file(htmlFilepath: str, relativepth=None):
     htmlFilepath = htmlFilepath.split("/") if "/" in htmlFilepath else htmlFilepath.split("\\")
-    jsonFilepath = f"./data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json"
+    jsonFilepath = f"{relativepth}/data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json" if relativepth else f"./data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json"
     with open(jsonFilepath, "r", encoding="utf-8") as fp:
         return json.load(fp)
 
