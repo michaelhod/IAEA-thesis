@@ -4,9 +4,15 @@ from Stage1.tree_helpers import *
 
 BLOCKS = {'p','li','dt','dd','blockquote','pre','h1','h2','h3','h4','h5','h6','figcaption'}
 LEFTOVER = {'td'}
-SKIP   = {'script','style','noscript','template'}
+SKIP   = {'script','style','noscript','template','button', 'nav', 'footer'}
+IGNORECLASSES = ["hidden", "footer", "navbar"]
 
 # --- helpers ---------------------------------------------------------------
+
+def class_list(el):
+    s = el.get('class') or ''
+    items = [x.strip().lower() for x in s.split(' ') if x.strip()]
+    return items
 
 def style_dict(el):
     """Parse inline style into a dict with lowercase keys/values."""
@@ -18,6 +24,14 @@ def style_dict(el):
             k, v = it.split(':', 1)
             out[k.strip().lower()] = v.strip().lower()
     return out
+
+def classname_contains(el, classes):
+    c = class_list(el)
+    for candidate in classes:
+        for a_class in c:
+            if candidate.strip().lower() in a_class:
+                return True
+    return False
 
 def hidden_by_inline_style(el):
     s = style_dict(el)
@@ -32,11 +46,13 @@ def non_empty_text(el):
 def xpath_of(el):
     return el.getroottree().getpath(el)
 
-def is_inside_any(el, containers_set):
+def is_inside_any(el, containers_set, exact=True):
     """Return True if el has any ancestor in containers_set."""
     p = el.getparent()
     while p is not None:
-        if p in containers_set:
+        if exact and p in containers_set:
+            return True
+        elif not exact and p.tag.lower() in containers_set:
             return True
         p = p.getparent()
     return False
@@ -136,6 +152,10 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
                 continue
             if not non_empty_text(el):
                 continue
+            if is_inside_any(el, SKIP, False):
+                continue
+            if classname_contains(el, IGNORECLASSES):
+                continue
             block_containers.add(el)
             push(el, 'block')
 
@@ -143,6 +163,10 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
     for tag in LEFTOVER:
         for el in tree.findall('.//' + tag):
             if is_inside_any(el, block_containers):
+                continue
+            if is_inside_any(el, SKIP, False):
+                continue
+            if classname_contains(el, IGNORECLASSES):
                 continue
             if is_ancestor_of_any(el, block_containers):
                 continue
@@ -154,17 +178,21 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
             push(el, 'l-over')
 
     # 2) "Line-like" anchors outside the captured blocks
-    for a in tree.findall('.//a'):
-        if not isinstance(a.tag, str):
+    for el in tree.findall('.//a'):
+        if is_inside_any(el, SKIP, False):
             continue
-        if hidden_by_inline_style(a):
+        if classname_contains(el, IGNORECLASSES):
             continue
-        if is_inside_any(a, block_containers):
+        if not isinstance(el.tag, str):
             continue
-        if not non_empty_text(a):
+        if hidden_by_inline_style(el):
             continue
-        if anchor_is_block_like(a, block_containers):
-            push(a, 'line')
+        if is_inside_any(el, block_containers):
+            continue
+        if not non_empty_text(el):
+            continue
+        if anchor_is_block_like(el, block_containers):
+            push(el, 'line')
 
     return results
 

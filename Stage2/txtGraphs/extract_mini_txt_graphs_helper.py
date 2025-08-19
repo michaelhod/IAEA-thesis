@@ -191,17 +191,60 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
 
     return sorted_label_index, xpaths, txts
 
+def keepTopKMask(arr, k: int):
+    """arr is shape (K,2), ordered. It keeps the first k instances of each individual instance"""
+
+    uniqueValuesInArr = np.unique(arr, axis=None)
+    arr = np.array(arr)
+    mask = np.array([False]*len(arr))
+
+    for uniquevalue in uniqueValuesInArr:
+        i = 0
+        for idx, pair in enumerate(arr):
+            if i >= k:
+                break
+            if uniquevalue in pair:
+                i+=1
+                mask[idx] = True
+
+    return mask
+
+def filterTextMask(textArr, filter, exact=True):
+    mask = np.array([False]*len(textArr))
+    if exact:
+        for idx, pair in enumerate(textArr):
+            if filter in pair:
+                mask[idx] = True
+    else:
+        for idx, pair in enumerate(textArr):
+            if filter in pair[0] or filter in pair[1]:
+                mask[idx] = True
+    return mask
+
 if __name__ == "__main__":
     #Import model
+    # model = GraphAttentionNetwork(in_dim = 119, edge_in_dim = 210, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
+    # state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-83-newtagsnotitle.pt", map_location=torch.device(device))
     model = GraphAttentionNetwork(in_dim = 114, edge_in_dim = 200, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
     state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-75-learning.pt", map_location=torch.device(device))
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict, strict=False)
     model.to(device)
 
     # url = "C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\data\\swde\\sourceCode\\sourceCode\\movie\\movie\\movie-allmovie(2000)\\0000.htm"
-    url = r"https://www.nucnet.org/news/parliament-resolution-paves-way-for-establishing-nuclear-energy-legislation-6-4-2024"
+    # url = r"https://www.nucnet.org/news/parliament-resolution-paves-way-for-establishing-nuclear-energy-legislation-6-4-2024"
+    url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
+    # url  = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
+    # url = "https://www.nfl.com/teams/" # Great to show teams and structured data
+    # url = "https://www.energy.gov/ne/articles/advantages-and-challenges-nuclear-energy" #Great to show semi structured webpages with titles
     htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
     downloadHTML(url,1,htmlFile)     
 
-    sorted_label_index, xpaths, txts = main(htmlFile, url, model)
-    print(txts[:10])
+    sorted_label_index, xpaths, txts = main(htmlFile, model)
+    normtxt = []
+    for a, b in txts:
+        normtxt.append([normalise_text(a), normalise_text(b)])
+    txts = np.array(normtxt)
+    #mask = keepTopKMask(txts, 1)
+    mask = filterTextMask(txts, "starting11", False)
+    xpaths = np.array(xpaths)
+    print(txts[mask])
