@@ -290,7 +290,7 @@ def plot_metrics_live(
 
     # left-axis curves
     ax_left.plot(epochs, edgetrain_vals, "-o", label="Edge Train", markersize=4)
-    #ax_left.plot(epochs, titletrain_vals, "-o", label="Title Train", markersize=4)
+    ax_left.plot(epochs, titletrain_vals, "-o", label="Title Train", markersize=4)
     ax_left.plot(epochs, totaltrain_vals, "-o", label="Total Train", markersize=4)
     ax_left.plot(epochs, val_vals,   "-s", label="Val",   markersize=4)
     ax_left.set_xlabel(xlabel)
@@ -534,7 +534,7 @@ def train_model(model,
     edgetrain_loss, titletrain_loss, totaltrain_loss, val_loss, precision, recall, f1score = [], [], [], [], [], [], []
 
     for epoch in range(1, num_epochs + 1):
-        lambda_title = 0#.01 - 0.01*(epoch/num_epochs) if epoch > 0 else 0
+        lambda_title = 0.002 + 0.008*(epoch/num_epochs) if epoch > 0 else 0
         p_Lef_drop = 0.3 - 0.6 * (epoch-2)/(num_epochs-2 + 1e-9)        
         use_E_attr,  use_A_attr = (epoch>0), (epoch>0)
 
