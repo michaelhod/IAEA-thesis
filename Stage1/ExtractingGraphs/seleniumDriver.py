@@ -15,6 +15,7 @@ def driver_init(disableJS=True): #This is temporary to get the swde set to work.
     TMP_PROFILE = tempfile.mkdtemp(prefix="ch_")
 
     opts = webdriver.ChromeOptions()
+    #opts.page_load_strategy = "eager"
     opts.add_argument("--headless=new")
     if disableJS:
         prefs = {"profile.managed_default_content_settings.javascript": 2}

@@ -232,10 +232,13 @@ if __name__ == "__main__":
 
     # url = "C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\data\\swde\\sourceCode\\sourceCode\\movie\\movie\\movie-allmovie(2000)\\0000.htm"
     # url = r"https://www.nucnet.org/news/parliament-resolution-paves-way-for-establishing-nuclear-energy-legislation-6-4-2024"
-    url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
-    # url  = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
+    # url = "https://westinghousenuclear.com/"
+    # url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
+    # url = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
     # url = "https://www.nfl.com/teams/" # Great to show teams and structured data
     # url = "https://www.energy.gov/ne/articles/advantages-and-challenges-nuclear-energy" #Great to show semi structured webpages with titles
+    # url = "https://westinghousenuclear.com/nuclear-fuel/fuel-fabrication-operations/"
+    url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
     htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
     downloadHTML(url,1,htmlFile)     
 
@@ -245,6 +248,6 @@ if __name__ == "__main__":
         normtxt.append([normalise_text(a), normalise_text(b)])
     txts = np.array(normtxt)
     #mask = keepTopKMask(txts, 1)
-    mask = filterTextMask(txts, "starting11", False)
+    mask = filterTextMask(txts, "substitutions", False)
     xpaths = np.array(xpaths)
     print(txts[mask])
