@@ -243,7 +243,9 @@ def make_loader(ds, batch_size=1, shuffle=False):
 
 # %%
 def plot_metrics_live(
-    train_vals,
+    edgetrain_vals,
+    titletrain_vals,
+    totaltrain_vals,
     val_vals,
     p, r, f1,                 # new metric lists (same length as train/val)
     save_path,
@@ -284,10 +286,12 @@ def plot_metrics_live(
     ax_left.cla()
     ax_right.cla()
 
-    epochs = range(1, len(train_vals) + 1)
+    epochs = range(1, len(totaltrain_vals) + 1)
 
     # left-axis curves
-    ax_left.plot(epochs, train_vals, "-o", label="Train", markersize=4)
+    ax_left.plot(epochs, edgetrain_vals, "-o", label="Edge Train", markersize=4)
+    #ax_left.plot(epochs, titletrain_vals, "-o", label="Title Train", markersize=4)
+    ax_left.plot(epochs, totaltrain_vals, "-o", label="Total Train", markersize=4)
     ax_left.plot(epochs, val_vals,   "-s", label="Val",   markersize=4)
     ax_left.set_xlabel(xlabel)
     ax_left.set_ylabel(ylabel_left)
@@ -311,33 +315,28 @@ def plot_metrics_live(
     return fig, (ax_left, ax_right)
 
 # %%
-def per_graph_title_loss(title_logits: torch.Tensor,
-                         node_ptr: torch.Tensor,
-                         title_idx_local: torch.Tensor,
-                         ignore_index: int = -1,
-                         reduction: str = "mean") -> torch.Tensor:
+def per_graph_title_loss(title_logits, node_ptr, title_idx_local):
     """
-    title_logits:      (TotalN,) logits for ALL nodes in the batch (from your title head)
-    node_ptr:          (G+1,) cumulative counts: [0, n0, n0+n1, ...]
-    title_idx_local:   (G,)   per-graph LOCAL index 0..n_g-1 (or ignore_index for missing)
+    title_logits: 1D scores per node across the whole batch [N_total]
+    node_ptr:     [G+1] cumulative node counts; graph g = [s:e)
+    title_idx_local: [G] local index (0..N_g-1) of gold title per graph
     """
-    device = title_logits.device
+    G = node_ptr.numel() - 1
+    if G <= 0:
+        return title_logits.new_zeros((), dtype=torch.float32)
+
     losses = []
-    G = title_idx_local.numel()
     for g in range(G):
-        t = title_idx_local[g].item()
-        if t == ignore_index:   # allow graphs without title
+        s = int(node_ptr[g].item()); e = int(node_ptr[g+1].item())
+        if e <= s:  # empty graph guard
             continue
-        s, e = node_ptr[g].item(), node_ptr[g+1].item()
-        lg = title_logits[s:e]                    # (n_g,)
-        # CE expects (N, C). Treat as 1 sample with C=n_g classes:
-        loss_g = F.cross_entropy(lg.unsqueeze(0),
-                                 torch.tensor([t], device=device, dtype=torch.long))
-        losses.append(loss_g)
-    if not losses:
-        # produce a 0 loss that still backprops cleanly
-        return title_logits.sum() * 0.0
-    return torch.stack(losses).mean() if reduction == "mean" else torch.stack(losses).sum()
+        logits_g = title_logits[s:e]              # [N_g]
+        # OUT-OF-PLACE clamp (no `_`)
+        tgt = torch.clamp(title_idx_local[g], 0, (e - s) - 1)
+        # CE expects [1, C] vs [1]
+        losses.append(F.cross_entropy(logits_g.unsqueeze(0), tgt.unsqueeze(0)))
+    return torch.stack(losses).mean() if losses else title_logits.new_zeros(())
+
 
 
 def focal_loss(logits, targets, alpha = 0.25, gamma = 2.0, reduction: str = "mean"):
@@ -410,8 +409,12 @@ def train_epoch(model, loader, optimizer,
 
     model.train()
     
-    running_loss, running_edges = 0.0, 0
+    # running_loss, running_edges = 0.0, 0
     count = 0
+    edge_loss_num = 0.0   # sum over edges of per-edge loss
+    edge_count    = 0
+    title_loss_num = 0.0  # sum over graphs of per-graph loss
+    graph_count    = 0
     l = len(loader)
 
     for f, X_sparse, Aei, Aef, Lei, Lef, y, node_ptr, title_idx_local in loader:
@@ -424,8 +427,16 @@ def train_epoch(model, loader, optimizer,
         
         edge_logits, title_logits = model(X_sparse, Aei, Aef, Lei, Lef, kwargs["p_Lef_drop"], kwargs["use_E_attr"], kwargs["use_A_attr"], return_title=True)          # (N_label,)
 
-        edge_loss  = criterion(edge_logits, y.float())
+         # --- Edge loss: normalize per-edge (sum / num_edges) ---
+        num_edges = int(y.numel())
+        edge_loss_sum = criterion(edge_logits, y.float(), reduction="sum")
+        edge_loss = edge_loss_sum / max(num_edges, 1)
+
+        # --- Title loss: mean per-graph ---
+        G = int(node_ptr.numel() - 1)
         title_loss = per_graph_title_loss(title_logits, node_ptr, title_idx_local)
+
+        # --- Total loss ---
         loss = edge_loss + kwargs["lambda_title"] * title_loss
 
         loss.backward()
@@ -433,14 +444,19 @@ def train_epoch(model, loader, optimizer,
         optimizer.step()
         sched.step()
 
-        running_loss  += loss.item() * y.numel()
-        running_edges += y.numel()
+        edge_loss_num  += float(edge_loss.item())  * num_edges  # back to "sum over edges"
+        edge_count     += num_edges
+        title_loss_num += float(title_loss.item()) * max(G, 0)  # sum over graphs
+        graph_count    += max(G, 0)
 
         if count % 20 == 0:
             print(f"epoch {count}/{l} "
-                    f"loss={loss:.4f}")
+                    f"edge_loss={edge_loss:.4f}, title_loss={(kwargs["lambda_title"] * title_loss):.4f}, loss={loss:.4f}")
 
-    return running_loss / running_edges
+    avg_edge  = edge_loss_num / max(edge_count, 1)
+    avg_title = title_loss_num / max(graph_count, 1)
+    avg_total = avg_edge + kwargs["lambda_title"] * avg_title
+    return avg_edge, avg_title, avg_total
 
 
 # ---------- evaluation -------------------------------------------------------
@@ -515,15 +531,17 @@ def train_model(model,
     #criterion = nn.BCEWithLogitsLoss()
 
     best_f1, fig_ax, best_state = 0.0, None, None
-    train_loss, val_loss, precision, recall, f1score = [], [], [], [], []
+    edgetrain_loss, titletrain_loss, totaltrain_loss, val_loss, precision, recall, f1score = [], [], [], [], [], [], []
 
     for epoch in range(1, num_epochs + 1):
-        lambda_title = 0.02 if epoch > 2 else 0
-        p_Lef_drop = 0#.3 - 0.3 * (epoch-2)/(num_epochs-2 + 1e-9)        
+        lambda_title = 0#.01 - 0.01*(epoch/num_epochs) if epoch > 0 else 0
+        p_Lef_drop = 0.3 - 0.6 * (epoch-2)/(num_epochs-2 + 1e-9)        
         use_E_attr,  use_A_attr = (epoch>0), (epoch>0)
 
-        loss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
-        train_loss.append(loss)
+        edgeloss, titleloss, totalloss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
+        edgetrain_loss.append(edgeloss)
+        titletrain_loss.append(titleloss)
+        totaltrain_loss.append(totalloss)
 
         if epoch % validate_every == 0 or epoch == num_epochs:
             loss, p, r, f1 = eval_edge_model(model, val_loader, criterion, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, lambda_title=lambda_title)
@@ -544,7 +562,7 @@ def train_model(model,
             #     break
 
             fig_ax = plot_metrics_live(
-                train_loss,
+                edgetrain_loss, titletrain_loss, totaltrain_loss,
                 val_loss,
                 precision,recall,f1score,
                 "CurrentRun",
@@ -561,7 +579,7 @@ def train_model(model,
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    return best_state, train_loss, val_loss, fig_ax
+    return best_state, totaltrain_loss, val_loss, fig_ax
 
 
 # %%
@@ -586,7 +604,7 @@ train_idx = list(set(range(N)) - set(val_idx) - set(usatoday_idx) - set(yahoo_id
 train_ds = Subset(dataset, train_idx)
 val_ds   = Subset(dataset, val_idx)
 
-train_loader = make_loader(train_ds, batch_size=256, shuffle=True)
+train_loader = make_loader(train_ds, batch_size=512, shuffle=True)
 val_loader = make_loader(val_ds, batch_size=64, shuffle=True)
 
 model = GraphAttentionNetwork(in_dim = 119, edge_in_dim = 210, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)#16,32,4 was the winner
@@ -596,7 +614,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
             train_loader,
             val_loader,
             load_checkpoint,
-            num_epochs     = 399,
+            num_epochs     = 120,
             lr             = 1e-3,
             validate_every = 1,
             patience       = 1,
@@ -604,7 +622,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 # %%
 #Save model
-torch.save(model.state_dict(), "FULLTRAINEDALLDATAModelf1-83-newtagsnotitle.pt")
+torch.save(model.state_dict(), "LongEpochnewlabelnotitle.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
