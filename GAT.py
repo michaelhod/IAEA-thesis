@@ -534,9 +534,9 @@ def train_model(model,
     edgetrain_loss, titletrain_loss, totaltrain_loss, val_loss, precision, recall, f1score = [], [], [], [], [], [], []
 
     for epoch in range(1, num_epochs + 1):
-        lambda_title = 0.002 + 0.008*(epoch/num_epochs) if epoch > 0 else 0
-        p_Lef_drop = 0.3 - 0.6 * (epoch-2)/(num_epochs-2 + 1e-9)        
-        use_E_attr,  use_A_attr = (epoch>0), (epoch>0)
+        lambda_title = 0#.002 + 0.008*(epoch/num_epochs) if epoch > 0 else 0
+        p_Lef_drop = 0#.3 - 0.6 * (epoch-2)/(num_epochs-2 + 1e-9)        
+        use_E_attr,  use_A_attr = (epoch>80), (epoch>0)
 
         edgeloss, titleloss, totalloss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
         edgetrain_loss.append(edgeloss)
@@ -565,7 +565,7 @@ def train_model(model,
                 edgetrain_loss, titletrain_loss, totaltrain_loss,
                 val_loss,
                 precision,recall,f1score,
-                "CurrentRun",
+                "CurrentRunyesNOEFOR80",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -622,7 +622,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 # %%
 #Save model
-torch.save(model.state_dict(), "LongEpochnewlabelnotitle.pt")
+torch.save(model.state_dict(), "LongEpochnewlabelnotitleNOEFOR80.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
