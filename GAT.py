@@ -518,7 +518,9 @@ def train_model(model,
     model.to(device)
     
     opt   = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
+    sched1 = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=80, steps_per_epoch=len(train_loader),
+                   pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
+    sched2 = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=40, steps_per_epoch=len(train_loader),
                    pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
                         #StepLR(opt, step_size=3, gamma=0.9)
     criterion = focal_loss
@@ -534,9 +536,10 @@ def train_model(model,
     edgetrain_loss, titletrain_loss, totaltrain_loss, val_loss, precision, recall, f1score = [], [], [], [], [], [], []
 
     for epoch in range(1, num_epochs + 1):
-        lambda_title = 0#.002 + 0.008*(epoch/num_epochs) if epoch > 0 else 0
+        lambda_title = 0.002 + 0.008*(epoch/num_epochs) if epoch > 0 else 0
         p_Lef_drop = 0#.3 - 0.6 * (epoch-2)/(num_epochs-2 + 1e-9)        
         use_E_attr,  use_A_attr = (epoch>80), (epoch>0)
+        sched = sched2 if epoch>80 else sched1
 
         edgeloss, titleloss, totalloss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
         edgetrain_loss.append(edgeloss)
@@ -565,7 +568,7 @@ def train_model(model,
                 edgetrain_loss, titletrain_loss, totaltrain_loss,
                 val_loss,
                 precision,recall,f1score,
-                "CurrentRunyesNOEFOR80",
+                "CurrentRunYestitleNoEFOR8OEOCHS",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -622,7 +625,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 # %%
 #Save model
-torch.save(model.state_dict(), "LongEpochnewlabelnotitleNOEFOR80.pt")
+torch.save(model.state_dict(), "LongEpochnewlabelYestitleNoEFOR8OEOCHS.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
@@ -632,7 +635,7 @@ torch.save(model.state_dict(), "LongEpochnewlabelnotitleNOEFOR80.pt")
 
 
 
-eval_edge_model(model, val_loader, focal_loss, device="cuda", use_E_attr=True, use_A_attr=True)
+#eval_edge_model(model, val_loader, focal_loss, device="cuda", use_E_attr=True, use_A_attr=True)
 #b4 submitting to A100
 #Experiemnt with the comparison loss
 #Do self layers myself
