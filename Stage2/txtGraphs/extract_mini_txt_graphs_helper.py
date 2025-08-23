@@ -17,7 +17,7 @@ import pandas as pd
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConvertedToGraph=""):
+def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConvertedToGraph="", ranking="min"):
     """
     Returns predicted edges given htmlFilePath and model
     URL is used to remove external links from predictions
@@ -156,15 +156,17 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
     # %%
     order = np.argsort(probs.squeeze().tolist())[::-1]
     sorted_label_index = label_index[order]
-    
+
     # Build a mapping from tuple to its position for fast lookup
     pair_to_pos = {tuple(pair): idx for idx, pair in enumerate(sorted_label_index)}
     avg_pos = []
     for idx, label in enumerate(sorted_label_index):
-        pair = tuple(label)
         rev_pair = (label[1], label[0])
-        rev_idx = pair_to_pos.get(rev_pair, idx)
-        avg_pos.append((idx + rev_idx) / 2)
+        rev_idx = pair_to_pos[rev_pair]
+        if ranking == "min":
+            avg_pos.append(min(idx, rev_idx))
+        else:
+            avg_pos.append((idx + rev_idx) / 2)
 
     order = np.argsort(avg_pos)
     sorted_label_index = sorted_label_index[order]
@@ -225,8 +227,10 @@ if __name__ == "__main__":
     #Import model
     # model = GraphAttentionNetwork(in_dim = 119, edge_in_dim = 210, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
     # state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-83-newtagsnotitle.pt", map_location=torch.device(device))
-    model = GraphAttentionNetwork(in_dim = 114, edge_in_dim = 200, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
-    state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-75-learning.pt", map_location=torch.device(device))
+    # model = GraphAttentionNetwork(in_dim = 114, edge_in_dim = 200, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
+    # state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-75-learning.pt", map_location=torch.device(device))
+    model = GraphAttentionNetwork(in_dim = 119, edge_in_dim = 210, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
+    state_dict = torch.load("./Stage1/GAT/LONG80EPOCH-75f1-newlabelnotitle.pt", map_location=torch.device(device))
     model.load_state_dict(state_dict, strict=False)
     model.to(device)
 
@@ -240,7 +244,7 @@ if __name__ == "__main__":
     # url = "https://westinghousenuclear.com/nuclear-fuel/fuel-fabrication-operations/"
     url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
     htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
-    downloadHTML(url,1,htmlFile)     
+    downloadHTML(url,1,htmlFile)
 
     sorted_label_index, xpaths, txts = main(htmlFile, model)
     normtxt = []
@@ -248,6 +252,7 @@ if __name__ == "__main__":
         normtxt.append([normalise_text(a), normalise_text(b)])
     txts = np.array(normtxt)
     #mask = keepTopKMask(txts, 1)
-    mask = filterTextMask(txts, "substitutions", False)
+    mask = filterTextMask(txts, "18jayew", True)
     xpaths = np.array(xpaths)
-    print(txts[mask])
+    print(txts[mask][:200])
+    print(xpaths[mask][:20])

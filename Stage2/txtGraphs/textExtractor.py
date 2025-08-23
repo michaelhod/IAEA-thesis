@@ -104,11 +104,11 @@ def anchor_is_block_like(a, block_containers):
 
     return False
 
-def is_deepest_td_with_text(td_el):
+def is_deepest_el_of_its_type_with_text(td_el):
     """True if td_el has text and no descendant <td> with text (ignoring hidden)."""
     if not non_empty_text(td_el):
         return False
-    for d in td_el.findall('.//td'):
+    for d in td_el.findall('.//' + td_el.tag.lower()):
         if not isinstance(d.tag, str):
             continue
         if hidden_by_inline_style(d):
@@ -172,6 +172,8 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
     # 1.5) Leftovers IF they havent been picked up
     for tag in LEFTOVER:
         for el in tree.findall('.//' + tag):
+            if not non_empty_text(el):
+                continue
             if is_inside_any(el, block_containers):
                 continue
             if is_inside_any(el, SKIP, False):
@@ -182,10 +184,8 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
                 continue
             if is_ancestor_of_any(el, block_containers):
                 continue
-            if el.tag.lower() == "td" and not is_deepest_td_with_text(el):
+            if el.tag.lower() == "td" and not is_deepest_el_of_its_type_with_text(el):
                 continue
-            if el.tag.lower() == "span":
-                print(get_node_text(el))
             block_containers.add(el)
             push(el, 'l-over')
 
@@ -206,7 +206,27 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
         if not non_empty_text(el):
             continue
         if anchor_is_block_like(el, block_containers):
+            block_containers.add(el)
             push(el, 'line')
+
+    for tag in ['div', 'span']:
+        for el in tree.findall('.//' + tag):
+            if not non_empty_text(el):
+                continue
+            if is_inside_any(el, block_containers):
+                continue
+            if is_inside_any(el, SKIP, False):
+                continue
+            if classname_contains(el, IGNORECLASSES):
+                continue
+            if is_inside_any_classname(el, IGNORECLASSES):
+                continue
+            if is_ancestor_of_any(el, block_containers):
+                continue
+            if is_deepest_el_of_its_type_with_text(el):
+                continue
+            block_containers.add(el)
+            push(el, 'l-over')
 
     return results
 
