@@ -17,7 +17,7 @@ import pandas as pd
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConvertedToGraph="", ranking="min"):
+def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConvertedToGraph="", ranking_type="min", remove_dupes=True):
     """
     Returns predicted edges given htmlFilePath and model
     URL is used to remove external links from predictions
@@ -155,7 +155,10 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
 
     # %%
     order = np.argsort(probs.squeeze().tolist())[::-1]
+    probs = probs.squeeze().detach().numpy()
+
     sorted_label_index = label_index[order]
+    sorted_probs = probs[order]
 
     # Build a mapping from tuple to its position for fast lookup
     pair_to_pos = {tuple(pair): idx for idx, pair in enumerate(sorted_label_index)}
@@ -163,23 +166,18 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
     for idx, label in enumerate(sorted_label_index):
         rev_pair = (label[1], label[0])
         rev_idx = pair_to_pos[rev_pair]
-        if ranking == "min":
-            avg_pos.append(min(idx, rev_idx))
+        if ranking_type == "min":
+            ranking = min(idx, rev_idx)
+            ranking = ranking if ranking == idx else ranking + 1e-9 #This is so that the lesser of the two is ranked behind
+            avg_pos.append(ranking)
         else:
-            avg_pos.append((idx + rev_idx) / 2)
+            ranking = (idx + rev_idx) / 2
+            ranking = ranking if min(idx, rev_idx) == idx else ranking + 1e-9 #This is so that the lesser of the two is ranked behind
+            avg_pos.append(ranking)
 
     order = np.argsort(avg_pos)
     sorted_label_index = sorted_label_index[order]
-    
-    #remove duplicates
-    deduped = []
-    seen = set()
-    for u, v in sorted_label_index:
-        if (u, v) not in seen and (v, u) not in seen:
-            deduped.append([u, v])
-            seen.add((u, v))
-        
-    sorted_label_index = np.array(deduped)
+    sorted_probs = sorted_probs[order]
 
     # %%
     tree = load_html_as_tree(htmlFilePath)
@@ -191,7 +189,52 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
         txts.append([get_node_text(index2node[label[0]]).strip(), get_node_text(index2node[label[1]]).strip()])
         xpaths.append([tree.getpath(index2node[label[0]]), tree.getpath(index2node[label[1]])])
 
-    return sorted_label_index, xpaths, txts
+    # remove duplicates. This is needed as the same text chunk can be picked up under different ancestor nodes. Due to the nature of sorted_label_index ordering, the highest probability will be saved
+    deduped_label = []
+    deduped_xpath = []
+    deduped_txts = []
+    deduped_probs = []
+
+    def _is_ancestor_or_descendant(a: str, b: str) -> bool:
+        return a.startswith(b + '/') or b.startswith(a + '/') or a==b
+
+    # seen maps an ordered text pair -> list of xpath pairs we've already accepted
+    seen = {}
+
+    for idx, (coord, xpath_pair, txt_pair, prob) in enumerate(zip(sorted_label_index, xpaths, txts, sorted_probs)):
+        u_txt, v_txt = txt_pair
+        u_xpath, v_xpath = xpath_pair
+        pair = (u_txt, v_txt)
+
+        # Have we seen this ordered text pair with compatible (ancestor/descendant) xpaths?
+        def _paths_match_any(seen_pairs):
+            for su, sv in seen_pairs:
+                if _is_ancestor_or_descendant(u_xpath, su) and _is_ancestor_or_descendant(v_xpath, sv):
+                    return True
+            return False
+
+        already_seen = False
+        if pair in seen and _paths_match_any(seen[pair]):
+            already_seen = True
+        elif remove_dupes:
+            # optionally consider reversed pair as a duplicate too
+            rev = (v_txt, u_txt)
+            if rev in seen:
+                # compare crosswise (current u vs seen v, current v vs seen u)
+                for sv, su in seen[rev]:
+                    if _is_ancestor_or_descendant(u_xpath, su) and _is_ancestor_or_descendant(v_xpath, sv):
+                        already_seen = True
+                        break
+
+        # add to deduped
+        if not already_seen:
+            deduped_label.append(coord)
+            deduped_xpath.append([u_xpath, v_xpath])
+            deduped_txts.append([u_txt, v_txt])
+            deduped_probs.append(prob)
+            seen.setdefault(pair, []).append((u_xpath, v_xpath))
+
+    return deduped_label, deduped_xpath, deduped_txts, deduped_probs
 
 def keepTopKMask(arr, k: int):
     """arr is shape (K,2), ordered. It keeps the first k instances of each individual instance"""
@@ -239,20 +282,30 @@ if __name__ == "__main__":
     # url = "https://westinghousenuclear.com/"
     # url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
     # url = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
-    # url = "https://www.nfl.com/teams/" # Great to show teams and structured data
+    url = "https://www.nfl.com/teams/" # Great to show teams and structured data
     # url = "https://www.energy.gov/ne/articles/advantages-and-challenges-nuclear-energy" #Great to show semi structured webpages with titles
     # url = "https://westinghousenuclear.com/nuclear-fuel/fuel-fabrication-operations/"
-    url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
+    # url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
     htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
     downloadHTML(url,1,htmlFile)
 
-    sorted_label_index, xpaths, txts = main(htmlFile, model)
+    sorted_label_index, xpaths, txts, probs = main(htmlFile, model, remove_dupes=True)
     normtxt = []
     for a, b in txts:
         normtxt.append([normalise_text(a), normalise_text(b)])
     txts = np.array(normtxt)
-    #mask = keepTopKMask(txts, 1)
-    mask = filterTextMask(txts, "18jayew", True)
     xpaths = np.array(xpaths)
-    print(txts[mask][:200])
-    print(xpaths[mask][:20])
+    sorted_label_index = np.array(sorted_label_index)
+    probs = np.array(probs)
+    #mask = keepTopKMask(txts, 1)
+    mask = filterTextMask(txts, "afcteams", True)#13karrizabalaga
+    
+    for row in zip(sorted_label_index[mask][:200], xpaths[mask][:200], txts[mask][:200], probs[mask][:200]):
+        print(row[2])
+        print("\t", row[3])
+        print("\t", row[0])
+        print("\t", row[1])
+    
+    #xpaths = np.array(xpaths)
+    #print(txts[mask][:200])
+    #print(probs[mask][:200])
