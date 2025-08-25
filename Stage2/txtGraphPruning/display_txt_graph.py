@@ -1,6 +1,4 @@
-import math
-from typing import Iterable, Optional, Sequence, Tuple, Dict, Any, Union
-
+from typing import Sequence, Tuple, Optional, Dict, Any
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -8,24 +6,20 @@ from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable, get_cmap
 
 
-def _truncate(text: str, head=10, tail=10) -> str:
-    if text is None:
-        return ""
-    if len(text) <= head + tail + 3:
-        return text
-    return f"{text[:head]}...{text[-tail:]}"
+def _truncate(text: str, head: int = 7, tail: int = 7) -> str:
+    s = "" if text is None else str(text)
+    if len(s) <= head + tail + 3:
+        return s
+    return f"{s[:head]}...{s[-tail:]}"
 
 
 def draw_graph_from_arrays(
     *,
     # Edges (each position i describes the same edge across arrays)
-    txt_edge_pairs: Optional[Sequence[Tuple[str, str]]] = None,   # e.g. [["txtsrc1","txtdest1"], ...]
-    id_edge_pairs: Optional[Union[np.ndarray, Sequence[Tuple[int, int]]]] = None,  # node id pairs (int)
-    xpath_edge_pairs: Optional[Sequence[Tuple[str, str]]] = None,  # optional descriptor per node on the edge
-    probs: Optional[Sequence[float]] = None,                       # edge probabilities (len == num_edges)
-
-    # Node catalog (recommended): texts indexed by node id
-    node_texts: Optional[Union[Sequence[str], np.ndarray]] = None, # e.g. txts = np.array(normtxt)
+    txt_edge_pairs: Sequence[Tuple[str, str]],   # [("txtsrc1","txtdest1"), ...]
+    id_edge_pairs: Sequence[Tuple[int, int]],    # [(src_id, dst_id), ...]
+    xpath_edge_pairs: Sequence[Tuple[str, str]], # [(src_xpath, dst_xpath), ...]
+    probs: Sequence[float],                      # [p0, p1, ...]
 
     # Display/layout options
     title: str = "Graph",
@@ -42,179 +36,106 @@ def draw_graph_from_arrays(
 ) -> Dict[str, Any]:
     """
     Build and display a graph image from parallel edge arrays.
+    - Node labels = truncated text ('first10...last10') plus node id on a new line.
+    - If the same (u,v) appears multiple times, the highest-probability edge is kept.
 
-    You can supply edges by node IDs (recommended) and pass `node_texts` (1-D array)
-    so labels come from that catalog. If you don't have `node_texts`, you can supply
-    `txt_edge_pairs` and labels will be inferred from seen texts.
-
-    Parameters
-    ----------
-    txt_edge_pairs : list/array of (str, str), optional
-        Per-edge node text pairs. If `node_texts` is provided, this is optional.
-    id_edge_pairs : list/array of (int, int), optional
-        Per-edge node id pairs. Preferred if you also pass `node_texts`.
-    xpath_edge_pairs : list/array of (str, str), optional
-        Per-edge node xpath pairs (stored as edge attributes).
-    probs : list/array of float
-        Edge probabilities in [0, 1] (used for edge color/width).
-    node_texts : 1-D list/array of str, optional
-        Text for each node id (index = node id). Used to label nodes cleanly.
-        If omitted, labels fall back to any text seen in `txt_edge_pairs`.
-    Returns
-    -------
-    dict with keys:
-        - "G": the NetworkX graph
-        - "pos": node positions
-        - "fig": matplotlib figure
-        - "ax": matplotlib axes
+    Returns: {"G", "pos", "fig", "ax"}
     """
-
-    # ---- Validate inputs ----
-    if probs is None:
-        raise ValueError("`probs` must be provided (1-D sequence of edge probabilities).")
-
-    probs = np.asarray(probs).astype(float).tolist()
-
-    # Basic length checks across parallel edge arrays
-    num_edges = len(probs)
-
-    def _length_or_none(x):
-        return None if x is None else len(x)
-
-    for name, arrlen in [
-        ("txt_edge_pairs", _length_or_none(txt_edge_pairs)),
-        ("id_edge_pairs", _length_or_none(id_edge_pairs)),
-        ("xpath_edge_pairs", _length_or_none(xpath_edge_pairs)),
-    ]:
-        if arrlen is not None and arrlen != num_edges:
-            raise ValueError(f"Length mismatch: {name} has {arrlen}, but probs has {num_edges}.")
+    # ---- Validate lengths ----
+    n = len(probs)
+    if not (len(txt_edge_pairs) == len(id_edge_pairs) == len(xpath_edge_pairs) == n):
+        raise ValueError(
+            f"Length mismatch: probs={n}, "
+            f"txt_edge_pairs={len(txt_edge_pairs)}, "
+            f"id_edge_pairs={len(id_edge_pairs)}, "
+            f"xpath_edge_pairs={len(xpath_edge_pairs)}"
+        )
 
     # ---- Build graph ----
     G_cls = nx.DiGraph if directed else nx.Graph
     G = G_cls()
 
-    # If we have node_texts indexed by id, prepare a label lookup.
-    node_texts_lookup: Dict[int, str] = {}
-    if node_texts is not None:
-        # Ensure we can index by int ids safely
-        node_texts = np.asarray(node_texts, dtype=object)
-        node_texts_lookup = {int(i): ("" if node_texts[i] is None else str(node_texts[i]))
-                             for i in range(len(node_texts))}
+    # Stable node labels from first occurrence
+    seen_label_for: Dict[int, str] = {}
 
-    # If no id_edge_pairs provided, we’ll synthesize ids from seen texts (stable mapping)
-    synth_id = False
-    if id_edge_pairs is None:
-        if txt_edge_pairs is None:
-            raise ValueError("Provide at least one of `id_edge_pairs` or `txt_edge_pairs`.")
-        synth_id = True
-        id_map: Dict[str, int] = {}
-        next_id = 0
-        id_edge_pairs = []
-        for s, t in txt_edge_pairs:
-            for node_text in (s, t):
-                if node_text not in id_map:
-                    id_map[node_text] = next_id
-                    next_id += 1
-            id_edge_pairs.append((id_map[s], id_map[t]))
-        # If no node_texts catalog was passed, derive it from seen text
-        if not node_texts_lookup:
-            inv = {v: k for k, v in id_map.items()}
-            node_texts_lookup = {i: inv[i] for i in range(len(inv))}
+    # Keep single highest-probability edge per (u,v)
+    best_edge_idx: Dict[Tuple[int, int], int] = {}
 
-    # Normalize id_edge_pairs to Python list of tuples
-    id_edge_pairs = [tuple(map(int, e)) for e in id_edge_pairs]  # type: ignore
+    for i, ((u, v), (utxt, vtxt), (uxp, vxp), p) in enumerate(
+        zip(id_edge_pairs, txt_edge_pairs, xpath_edge_pairs, probs)
+    ):
+        u = int(u); v = int(v); p = float(p)
 
-    # Add nodes with labels (truncate + id)
-    def _node_label(node_id: int) -> str:
-        base = node_texts_lookup.get(node_id, f"node_{node_id}")
-        return f"{_truncate(str(base))}\n(id {node_id})"
+        if u not in seen_label_for:
+            seen_label_for[u] = f"{_truncate(utxt)}\n(id {u})"
+        if v not in seen_label_for:
+            seen_label_for[v] = f"{_truncate(vtxt)}\n(id {v})"
 
-    for u, v in id_edge_pairs:
-        if u not in G:
-            G.add_node(u, label=_node_label(u))
-        if v not in G:
-            G.add_node(v, label=_node_label(v))
-
-    # Add edges with attributes
-    # If multiple edges between same pair, keep the one with highest prob (cleaner drawing).
-    best_edge: Dict[Tuple[int, int], Tuple[int, float]] = {}  # (u,v) -> (idx, prob)
-    for i, (u, v) in enumerate(id_edge_pairs):
-        p = float(probs[i])
         key = (u, v)
-        if key not in best_edge or p > best_edge[key][1]:
-            best_edge[key] = (i, p)
+        if key not in best_edge_idx or float(probs[best_edge_idx[key]]) < p:
+            best_edge_idx[key] = i
 
-    for (u, v), (i, p) in best_edge.items():
-        attrs = {"prob": p}
-        if txt_edge_pairs is not None:
-            s_txt, t_txt = txt_edge_pairs[i]
-            attrs["src_text"] = s_txt
-            attrs["tgt_text"] = t_txt
-        if xpath_edge_pairs is not None:
-            s_xp, t_xp = xpath_edge_pairs[i]
-            attrs["src_xpath"] = s_xp
-            attrs["tgt_xpath"] = t_xp
-        G.add_edge(u, v, **attrs)
+    # Add nodes with labels
+    for node_id, label in seen_label_for.items():
+        G.add_node(node_id, label=label)
+
+    # Add edges (only the best per pair)
+    for (u, v), i in best_edge_idx.items():
+        s_txt, t_txt = txt_edge_pairs[i]
+        s_xp, t_xp = xpath_edge_pairs[i]
+        p = float(probs[i])
+        G.add_edge(
+            u, v,
+            prob=p,
+            src_text=s_txt, tgt_text=t_txt,
+            src_xpath=s_xp, tgt_xpath=t_xp
+        )
 
     # ---- Layout ----
-    # Spring layout with a little "gravity" option (shift everything outward if negative).
-    rng = np.random.default_rng(seed)
     pos = nx.spring_layout(G, seed=seed, k=k_layout)
     if gravity != 0.0:
-        # push/pull nodes radially from origin
         for n, (x, y) in pos.items():
-            r = math.hypot(x, y) + 1e-9
+            r = (x**2 + y**2) ** 0.5 + 1e-12
             pos[n] = (x + gravity * x / r, y + gravity * y / r)
 
-    # ---- Styling: edge colors/widths by probability ----
-    edge_probs = np.array([G.edges[e]["prob"] for e in G.edges()])
-    # Normalize into [0,1] even if probs aren’t strictly within [0,1]
-    norm = Normalize(vmin=float(np.min(edge_probs)) if len(edge_probs) else 0.0,
-                     vmax=float(np.max(edge_probs)) if len(edge_probs) else 1.0)
+    # ---- Edge styling by probability ----
+    edge_probs = np.array([G.edges[e]["prob"] for e in G.edges()], dtype=float)
+    if len(edge_probs) == 0:
+        vmin, vmax = 0.0, 1.0
+    else:
+        vmin, vmax = float(edge_probs.min()), float(edge_probs.max())
+        if vmin == vmax:
+            vmin, vmax = vmin - 1e-9, vmax + 1e-9
+
+    norm = Normalize(vmin=vmin, vmax=vmax)
     cmap = get_cmap(edge_cmap)
     edge_colors = [cmap(norm(G.edges[e]["prob"])) for e in G.edges()]
-
-    # Width scale
-    if len(edge_probs):
-        widths = min_edge_width + (max_edge_width - min_edge_width) * norm(edge_probs)
-    else:
-        widths = []
+    widths = (min_edge_width + (max_edge_width - min_edge_width) * norm(edge_probs)) if len(edge_probs) else []
 
     # ---- Draw ----
     fig, ax = plt.subplots(figsize=figsize)
     ax.set_title(title)
 
-    # Nodes
-    nx.draw_networkx_nodes(
-        G, pos, ax=ax, node_size=900, linewidths=1.0, edgecolors="black"
-    )
+    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=900, linewidths=1.0, edgecolors="black")
+    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=8, ax=ax)
 
-    # Node labels
-    node_labels = {n: G.nodes[n]["label"] for n in G.nodes()}
-    nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8, ax=ax)
-
-    # Edges
     nx.draw_networkx_edges(
-        G,
-        pos,
-        ax=ax,
-        arrows=True,
-        width=list(widths) if isinstance(widths, np.ndarray) else widths,
-        edge_color=edge_colors,
+        G, pos, ax=ax,
+        arrows=directed,
+        width=list(widths) if len(edge_probs) else 1.0,
+        edge_color=edge_colors if len(edge_probs) else "k",
         arrowsize=arrow_size,
-        connectionstyle="arc3,rad=0.1",  # slight curvature to reduce overlap
-        min_source_margin=10,
-        min_target_margin=10,
+        connectionstyle="arc3,rad=0.12",
+        min_source_margin=10, min_target_margin=10,
     )
 
-    # Edge labels (optional: show probs with 2 decimals). Comment out if too busy.
-    edge_labels = {(u, v): f"{G.edges[(u, v)]['prob']:.2f}" for u, v in G.edges()}
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=7, ax=ax)
+    if G.number_of_edges() > 0:
+        edge_labels = {(u, v): f"{d['prob']:.2f}" for u, v, d in G.edges(data=True)}
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=7, ax=ax)
 
     ax.axis("off")
 
-    # Colorbar for probability
-    if show_colorbar and len(edge_probs):
+    if show_colorbar and G.number_of_edges() > 0:
         sm = ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
         cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)

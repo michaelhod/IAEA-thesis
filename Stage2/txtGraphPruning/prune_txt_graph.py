@@ -226,19 +226,22 @@ if __name__ == "__main__":
     # -- RUN THE MAIN PRUNING MASK --
     mask = main(probs, sorted_label_index)
 
-    # Concatanate masks if we want specific text
+    # Concatanate and apply masks if we want specific text
     mask = mask #& filterTextMask(txts, "pittsburghsteelers", False) #& mask = keepTopKMask(txts, 1)
     print(len(sorted_label_index), " -> ", len(sorted_label_index[mask]))
-    for row in zip(sorted_label_index[mask][:200], xpaths[mask][:200], txts[mask][:200], probs[mask][:200]):
+    txts, probs, sorted_label_index, xpaths = txts[mask], probs[mask], sorted_label_index[mask], xpaths[mask]
+    # -- PRUNING FINISHED --
+
+    for row in zip(sorted_label_index[:200], xpaths[:200], txts[:200], probs[:200]):
         print(row[2])
         # print("\t", row[3])
         # print("\t", row[0])
         # print("\t", row[1])
 
     draw_graph_from_arrays(
+        txt_edge_pairs=txts,
         id_edge_pairs=sorted_label_index,
-        probs=probs,
-        node_texts=txts,
         xpath_edge_pairs=xpaths,
+        probs=probs,
         title="Graph",
     )
