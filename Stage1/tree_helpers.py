@@ -147,10 +147,14 @@ def get_node_text(node: etree._Element, normalised=False) -> str:
         txt = normalise_text(txt)
     return txt
 
-def normalise_text(txt:str) -> str:
+def normalise_text(txt:str, regexToKeep="", skipCheck=False) -> str:
+    if len(regexToKeep) > 0 and "\\" not in regexToKeep and not skipCheck:
+        raise Exception("No double backslash found, make sure no single backslashes are present")
     txt = html.unescape(txt).lower().replace("\r","\n") # normaluse carridge return
-    txt = re.sub(r"[^a-z0-9]+", "", txt.lower())
+    txt = re.sub(f"[^a-z0-9{regexToKeep}]+", "", txt.lower())
+    txt = re.sub(r"\s+", " ", txt).strip()
     return txt
+
 
 def remove_external_a(tree, url):
     root = tree.getroot()

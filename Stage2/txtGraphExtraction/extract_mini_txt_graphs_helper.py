@@ -7,7 +7,7 @@ import torch
 from Stage1.ExtractingGraphs.HTMLtoGraph import html_to_graph, EdgeFeatures
 from Stage1.ExtractingGraphs.seleniumDriver import *
 from Stage1.ExtractingLabels.swde_label_extraction import label_extraction, _find_matches
-from Stage2.txtGraphs.textExtractor import extract_chunk_xpaths
+from Stage2.txtGraphExtraction.textExtractor import extract_chunk_xpaths
 from Stage1.tree_helpers import *
 from pathlib import Path
 from scipy import sparse
