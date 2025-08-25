@@ -206,6 +206,9 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
         u_xpath, v_xpath = xpath_pair
         pair = (u_txt, v_txt)
 
+        if normalise_text(u_txt) == normalise_text(v_txt) and _is_ancestor_or_descendant(u_xpath, v_xpath):
+            continue
+
         # Have we seen this ordered text pair with compatible (ancestor/descendant) xpaths?
         def _paths_match_any(seen_pairs):
             for su, sv in seen_pairs:
@@ -289,7 +292,7 @@ if __name__ == "__main__":
     htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
     downloadHTML(url,1,htmlFile)
 
-    sorted_label_index, xpaths, txts, probs = main(htmlFile, model, remove_dupes=True)
+    sorted_label_index, xpaths, txts, probs = main(htmlFile, model, remove_dupes=False)
     normtxt = []
     for a, b in txts:
         normtxt.append([normalise_text(a), normalise_text(b)])
@@ -298,7 +301,7 @@ if __name__ == "__main__":
     sorted_label_index = np.array(sorted_label_index)
     probs = np.array(probs)
     #mask = keepTopKMask(txts, 1)
-    mask = filterTextMask(txts, "afcteams", True)#13karrizabalaga
+    mask = filterTextMask(txts, "afcteams", False)#13karrizabalaga
     
     for row in zip(sorted_label_index[mask][:200], xpaths[mask][:200], txts[mask][:200], probs[mask][:200]):
         print(row[2])
