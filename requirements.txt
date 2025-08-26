@@ -10,3 +10,4 @@ tqdm==4.67.1
 urllib3==2.5.0
 ipykernel
 beautifulsoup4
+transformers
