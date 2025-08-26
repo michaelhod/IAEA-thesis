@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(1, r"C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json")
 import numpy as np
 from Stage1.ExtractingGraphs.seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
@@ -10,7 +10,7 @@ import torch
 from torch_geometric.data import Data
 import torch_geometric.transforms as T
 
-TAGSOFINTEREST = json.load(open(r"C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\Stage1\\ExtractingGraphs\\tagsOfInterest.json", "r"))
+TAGSOFINTEREST = json.load(open(r"/vol/bitbucket/mjh24/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json", "r"))
 
 def saveHTML(filepath, html):
     with filepath.open("w", encoding="utf-8") as f:

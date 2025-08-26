@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(1, r"C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json")
 from Stage1.GAT.GATModel import GraphAttentionNetwork
 from Single_Website_Download.Download import main as downloadHTML
 import torch
