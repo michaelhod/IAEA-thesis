@@ -38,12 +38,12 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
     node_preds = []
     for i in range(0, len(texts), batch_size):
         batch_texts = texts[i:i+batch_size]
-        prompts = [f"""Decide if the text looks like a website instruction, button, or navigation label.
-                Return 1 for instruction/button/navigation, or 0 otherwise. Output only a single digit.
+        prompts = [f"""Decide if the text looks like a website button or navigation label.
+                Return 1 for button/navigation, or 0 otherwise. Output only a single digit.
 
                 Examples of 1: "Read more", "Learn more", "Explore", "Get started", "Try free", "Watch video",
                 "Sign in", "Sign up", "My account", "Download", "Contact", "Pricing", "Products", "Docs",
-                "Blog", "Home", "About", "Privacy Policy", "Terms", "English", "Menu", "Next", "Previous", "Back".
+                "Blog", "Home", "About", "Privacy Policy", "Terms", "Fr/En", "Menu", "Next", "Previous", "Back".
 
                 Examples of 0: sentences or descriptive copy, names of people or products in context, long summaries.
 
@@ -95,7 +95,7 @@ def classify_link_pairs_flan_batched(pairs, batch_size=16, max_new_tokens=4, dev
 2 = added_information (one side adds meaningful information to the other, e.g. ["evinci microreactor", "the next generation small modular reactor for remote applications"])
 3 = purpose_of_text (one side classifies the text's purpose, e.g. ["plot synopsis", "This movie is about Madagascar"])
 4 = sibling_content (two peer items/categories, e.g. ["afc teams", "nfc teams"])
-5 = unrelated (no meaningful relation)
+5 = unrelated (one side's information cannot enrich the other, e.g. ["the world's first passive safety plant", "the need for renewable energy must be safe"])
 
 ["{left}", "{right}"]
 
