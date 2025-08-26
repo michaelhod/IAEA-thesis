@@ -178,7 +178,7 @@ def clip_topk(W: np.ndarray, k: int, axis: int = 1) -> np.ndarray:
     else:
         raise Exception("Axis is either 1 or 0")
     
-def main(probs, sorted_label_index):
+def main(probs, sorted_label_index, toloerance = 0.15, side = "or", fallback_out = 2, fallback_in = 2, clip_to_n_edges_per_node=None, remove_dupes=True):
     
     # --- Build probability matrix ---
     max_id = int(sorted_label_index.max())
@@ -187,13 +187,15 @@ def main(probs, sorted_label_index):
     P = np.zeros((n, n), dtype=float)
     for (u, v), p in zip(sorted_label_index, probs):
         P[int(u), int(v)] = float(p)
-        if REMOVE_DUPES:
+        if remove_dupes:
             P[int(v), int(u)] = float(p)
 
-    P_clipped = clip_topk(P, CLIP_TO_N_EDGES_PER_NODE)
+    if clip_to_n_edges_per_node:
+        P_clipped = clip_topk(P, clip_to_n_edges_per_node)
+        P = P_clipped
 
     # --- Filter out edges ---
-    _, _, keep = disparity_backbone_bh(P_clipped, 0.15, "or", False, 2, 2)
+    _, _, keep = disparity_backbone_bh(P, toloerance, side, False, fallback_out, fallback_in)
     mask = [keep[i][j] for i,j in sorted_label_index]
     if len(mask) != len(sorted_label_index):
         raise Exception("The mask is a different length. Something is wrong")
@@ -226,7 +228,7 @@ if __name__ == "__main__":
     #i = np.where(xpaths == "/html/body/div[3]/main/section/div/div[3]/section/div/div[7]/div/div/div/div/a[2]")
 
     # -- RUN THE MAIN PRUNING MASK --
-    mask = main(probs, sorted_label_index)
+    mask = main(probs, sorted_label_index, REMOVE_DUPES)
 
     # Concatanate and apply masks if we want specific text
     mask = mask #& filterTextMask(txts, "houston", False) #& mask = keepTopKMask(txts, 1)

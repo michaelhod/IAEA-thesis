@@ -32,6 +32,8 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
         texts.append(str(left) if left is not None else "")
         texts.append(str(right) if right is not None else "")
 
+    texts = list(set(texts))
+
     # Classify each text node individually
     node_preds = []
     for i in range(0, len(texts), batch_size):
@@ -61,14 +63,19 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
             y = y.strip()
             node_preds.append(1 if (len(y) > 0 and y[0] == "1") else 0)
 
+    isTxtInstruct = {}
+    for idx, txt in enumerate(texts):
+        isTxtInstruct[txt] = node_preds[idx]
+
     # Reduce back to pair-level: OR(left, right)
     results = []
-    for j in range(0, len(node_preds), 2):
-        left_is_btn = node_preds[j]
-        right_is_btn = node_preds[j+1] if j+1 < len(node_preds) else 0
-        results.append(1 if (left_is_btn or right_is_btn) else 0)
+    for a, b in pairs:
+        if isTxtInstruct[a] == 1 or isTxtInstruct[b] == 1:
+            results.append(1)
+        else:
+            results.append(0)
 
-    return results
+    return results, isTxtInstruct
 
 def classify_link_pairs_flan_batched(pairs, batch_size=16, max_new_tokens=4, device=None):
     """

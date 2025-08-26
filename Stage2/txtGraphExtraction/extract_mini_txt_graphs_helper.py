@@ -155,7 +155,7 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
 
     # %%
     order = np.argsort(probs.squeeze().tolist())[::-1]
-    probs = probs.squeeze().detach().numpy()
+    probs = probs.squeeze().detach().cpu().numpy()
 
     sorted_label_index = label_index[order]
     sorted_probs = probs[order]
