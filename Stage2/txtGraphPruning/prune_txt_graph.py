@@ -193,7 +193,7 @@ def main(probs, sorted_label_index):
     P_clipped = clip_topk(P, CLIP_TO_N_EDGES_PER_NODE)
 
     # --- Filter out edges ---
-    edges, weights, keep = disparity_backbone_bh(P_clipped, 0.05, "out", False, 2, 2)
+    _, _, keep = disparity_backbone_bh(P_clipped, 0.15, "or", False, 2, 2)
     mask = [keep[i][j] for i,j in sorted_label_index]
     if len(mask) != len(sorted_label_index):
         raise Exception("The mask is a different length. Something is wrong")
@@ -210,7 +210,7 @@ if __name__ == "__main__":
     model.to(device)
 
     # Load the website
-    url = "https://www.nfl.com/teams/"
+    url = "https://westinghousenuclear.com/"
     htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
     downloadHTML(url,1,htmlFile)
 
@@ -223,25 +223,33 @@ if __name__ == "__main__":
         normtxt.append([normalise_text(a, "'\\s"), normalise_text(b, "'\\s")])
     txts, probs, sorted_label_index, xpaths = np.array(normtxt), np.array(probs), np.array(sorted_label_index), np.array(xpaths)
 
+    #i = np.where(xpaths == "/html/body/div[3]/main/section/div/div[3]/section/div/div[7]/div/div/div/div/a[2]")
+
     # -- RUN THE MAIN PRUNING MASK --
     mask = main(probs, sorted_label_index)
 
     # Concatanate and apply masks if we want specific text
-    mask = mask #& filterTextMask(txts, "pittsburghsteelers", False) #& mask = keepTopKMask(txts, 1)
+    mask = mask #& filterTextMask(txts, "houston", False) #& mask = keepTopKMask(txts, 1)
     print(len(sorted_label_index), " -> ", len(sorted_label_index[mask]))
     txts, probs, sorted_label_index, xpaths = txts[mask], probs[mask], sorted_label_index[mask], xpaths[mask]
     # -- PRUNING FINISHED --
 
-    for row in zip(sorted_label_index[:200], xpaths[:200], txts[:200], probs[:200]):
+    numToShow=50
+    for row in zip(sorted_label_index[:numToShow], xpaths[:numToShow], txts[:numToShow], probs[:numToShow]):
         print(row[2])
         # print("\t", row[3])
         # print("\t", row[0])
         # print("\t", row[1])
-
+    
     draw_graph_from_arrays(
-        txt_edge_pairs=txts,
-        id_edge_pairs=sorted_label_index,
-        xpath_edge_pairs=xpaths,
-        probs=probs,
-        title="Graph",
+        txt_edge_pairs=txts[:numToShow],
+        id_edge_pairs=sorted_label_index[:numToShow],
+        xpath_edge_pairs=xpaths[:numToShow],
+        probs=probs[:numToShow],
+        layout="spring",
+        rankdir="TB",         # or "TB" for top→bottom
+        layer_spacing=5.0,    # spread layers further
+        node_spacing=2.5,     # spread nodes within a layer
+        figsize=(16, 10),
+        title="My Graph (hierarchical)",
     )
