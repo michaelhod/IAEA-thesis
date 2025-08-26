@@ -28,7 +28,7 @@ def classify_link_pairs_flan_batched(pairs, batch_size=16, max_new_tokens=4, dev
 
         prompts = [
             f"""Classify the relation between these two texts into one category:
-1 = description_of_text (one side describes the other, e.g. ["plot synopsis", "movie summary"])
+1 = description_of_text (one side describes the other, e.g. ["plot synopsis", "This movie is about Madagascar"])
 2 = added_context (one side is metadata/attribute of the other, e.g. ["Director", "Christopher Nolan"])
 3 = sibling_content (two peer items/categories, e.g. ["afcteams", "nfcteams"])
 4 = contains_instruction (a call-to-action link, e.g. ["Read more", "Explore"])
