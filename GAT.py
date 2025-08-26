@@ -347,31 +347,28 @@ def focal_loss(logits, targets, alpha = 0.25, gamma = 2.0, reduction: str = "mea
 
 
 # ---------- 2. Pair-wise AUC (logistic ranking) loss -------------------------
-def pairwise_auc_loss(logits, targets, sample_k: int | None = None):
-    """
-    logits   : float tensor (B,)
-    targets  : {0,1} tensor (B,)
-    sample_k : optional int – #negatives to sample per positive.  If None,
-               uses *all* positives × negatives (can be heavy for big batches).
-    """
+def pairwise_auc_loss(logits, targets, sample_k: int | None = None, reduction: str = "mean"):
     pos_logits = logits[targets == 1]      # shape (P,)
     neg_logits = logits[targets == 0]      # shape (N,)
 
     if pos_logits.numel() == 0 or neg_logits.numel() == 0:
-        # No valid pairs (edge cases in small batches) – return 0 so it
-        # doesn't break the graph.
         return logits.new_tensor(0.0, requires_grad=True)
 
-    # --- optional negative subsampling to save memory ---
     if sample_k is not None and neg_logits.numel() > sample_k:
         idx = torch.randperm(neg_logits.numel(), device=logits.device)[:sample_k]
         neg_logits = neg_logits[idx]
 
-    # Broadcast positives against negatives: diff = s_pos - s_neg
-    diff = pos_logits[:, None] - neg_logits[None, :]        # (P, N) or (P, k)
-    loss = F.softplus(-diff)                                # log(1+e^(-diff))
+    diff = pos_logits[:, None] - neg_logits[None, :]   # (P, N)
+    loss = F.softplus(-diff)                          # (P, N)
 
-    return loss.mean()
+    if reduction == "mean":
+        return loss.mean()
+    elif reduction == "sum":
+        return loss.sum()
+    elif reduction == "none":
+        return loss
+    else:
+        raise ValueError(f"Invalid reduction: {reduction}")
 
 
 # ---------- 3. Combined wrapper ----------------------------------------------
@@ -383,19 +380,22 @@ class PairwiseAUCFocalLoss(nn.Module):
                  gamma: float = 2.0,
                  alpha: float = 0.25,
                  lambda_focal: float = 0.5,
-                 sample_k: int | None = None):
+                 sample_k: int | None = None,
+                 reduction: str = "mean",
+                 ):
         super().__init__()
         self.gamma = gamma
         self.alpha = alpha
         self.lambda_focal = lambda_focal
         self.sample_k = sample_k
+        self.reduction = reduction
 
     def forward(self, logits, targets):
         loss_rank = pairwise_auc_loss(
-            logits, targets, sample_k=self.sample_k
+            logits, targets, sample_k=self.sample_k, reduction=self.reduction
         )
         loss_focal = focal_loss(
-            logits, targets, alpha=self.alpha, gamma=self.gamma
+            logits, targets, alpha=self.alpha, gamma=self.gamma, reduction=self.reduction
         )
         return loss_rank * (1 - self.lambda_focal) + self.lambda_focal * loss_focal
 
@@ -523,13 +523,13 @@ def train_model(model,
     sched2 = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=40, steps_per_epoch=len(train_loader),
                    pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
                         #StepLR(opt, step_size=3, gamma=0.9)
-    criterion = focal_loss
-    # criterion = PairwiseAUCFocalLoss(
-    #             gamma=2.0,
-    #             alpha=0.25,
-    #             lambda_focal=1,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
-    #             sample_k=128     # speeds up training; set None for exact loss
-    #         )
+    # criterion = focal_loss
+    criterion = PairwiseAUCFocalLoss(
+                gamma=2.0,
+                alpha=0.25,
+                lambda_focal=0.5,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
+                sample_k=128     # speeds up training; set None for exact loss
+            )
     #criterion = nn.BCEWithLogitsLoss()
 
     best_f1, fig_ax, best_state = 0.0, None, None
@@ -539,7 +539,7 @@ def train_model(model,
         lambda_title = 0.002 + 0.008*(epoch/num_epochs) if epoch > 0 else 0
         p_Lef_drop = 0#.3 - 0.6 * (epoch-2)/(num_epochs-2 + 1e-9)        
         use_E_attr,  use_A_attr = (epoch>80), (epoch>0)
-        sched = sched2 if epoch>80 else sched1
+        sched = sched2 if epoch>=80 else sched1
 
         edgeloss, titleloss, totalloss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
         edgetrain_loss.append(edgeloss)
@@ -568,7 +568,7 @@ def train_model(model,
                 edgetrain_loss, titletrain_loss, totaltrain_loss,
                 val_loss,
                 precision,recall,f1score,
-                "CurrentRunYestitleNoEFOR8OEOCHS",
+                "CurrentRunYestitleNoEFOR1OEOCHS_pairwiseloss05",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -625,7 +625,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 # %%
 #Save model
-torch.save(model.state_dict(), "LongEpochnewlabelYestitleNoEFOR8OEOCHS.pt")
+torch.save(model.state_dict(), "LongEpochnewlabelYestitleNoEFOR1OEOCHS_pairwiseloss05.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"

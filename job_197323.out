@@ -1,0 +1,511 @@
+/vol/bitbucket/mjh24/IAEA-thesis/GAT.py:111: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  return torch.sparse_csr_tensor(
+GraphAttentionNetwork(
+  (tr1): TransformerConv(119, 32, heads=2)
+  (ln1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+  (tr2): TransformerConv(64, 32, heads=1)
+  (ln2): LayerNorm((32,), eps=1e-05, elementwise_affine=True)
+  (tr3): TransformerConv(32, 8, heads=1)
+  (edge_mlp): Sequential(
+    (0): Linear(in_features=48, out_features=8, bias=True)
+    (1): ReLU()
+    (2): Linear(in_features=8, out_features=1, bias=True)
+  )
+  (title_head): Sequential(
+    (0): Linear(in_features=8, out_features=8, bias=True)
+    (1): ReLU()
+    (2): Dropout(p=0.1, inplace=False)
+    (3): Linear(in_features=8, out_features=1, bias=True)
+  )
+)
+epoch 20/45 edge_loss=0.0501, title_loss=0.0136, loss=0.0637
+epoch 40/45 edge_loss=0.0497, title_loss=0.0136, loss=0.0633
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 001/120 loss=0.0641  P=0.474 R=0.474 F1=0.474  lr=2.26e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0489, title_loss=0.0140, loss=0.0628
+epoch 40/45 edge_loss=0.0482, title_loss=0.0140, loss=0.0622
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 002/120 loss=0.0637  P=0.445 R=0.445 F1=0.445  lr=4.18e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0469, title_loss=0.0143, loss=0.0612
+epoch 40/45 edge_loss=0.0463, title_loss=0.0144, loss=0.0607
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 003/120 loss=0.0624  P=0.422 R=0.422 F1=0.422  lr=7.24e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0454, title_loss=0.0148, loss=0.0602
+epoch 40/45 edge_loss=0.0448, title_loss=0.0148, loss=0.0596
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 004/120 loss=0.0608  P=0.431 R=0.431 F1=0.431  lr=1.12e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0436, title_loss=0.0153, loss=0.0590
+epoch 40/45 edge_loss=0.0431, title_loss=0.0152, loss=0.0583
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 005/120 loss=0.0593  P=0.446 R=0.446 F1=0.446  lr=1.59e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0427, title_loss=0.0155, loss=0.0583
+epoch 40/45 edge_loss=0.0425, title_loss=0.0155, loss=0.0580
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 006/120 loss=0.0589  P=0.470 R=0.470 F1=0.470  lr=2.09e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0422, title_loss=0.0159, loss=0.0581
+epoch 40/45 edge_loss=0.0420, title_loss=0.0157, loss=0.0576
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 007/120 loss=0.0584  P=0.499 R=0.499 F1=0.499  lr=2.58e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0415, title_loss=0.0159, loss=0.0574
+epoch 40/45 edge_loss=0.0411, title_loss=0.0156, loss=0.0568
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 008/120 loss=0.0570  P=0.578 R=0.578 F1=0.578  lr=3.05e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0403, title_loss=0.0156, loss=0.0559
+epoch 40/45 edge_loss=0.0394, title_loss=0.0151, loss=0.0544
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 009/120 loss=0.0545  P=0.618 R=0.618 F1=0.618  lr=3.44e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0383, title_loss=0.0141, loss=0.0524
+epoch 40/45 edge_loss=0.0376, title_loss=0.0129, loss=0.0505
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 010/120 loss=0.0547  P=0.623 R=0.623 F1=0.623  lr=3.75e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0373, title_loss=0.0107, loss=0.0480
+epoch 40/45 edge_loss=0.0362, title_loss=0.0086, loss=0.0449
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 011/120 loss=0.0599  P=0.613 R=0.613 F1=0.613  lr=3.94e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0358, title_loss=0.0071, loss=0.0429
+epoch 40/45 edge_loss=0.0349, title_loss=0.0057, loss=0.0406
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 012/120 loss=0.0696  P=0.617 R=0.617 F1=0.617  lr=4.00e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0342, title_loss=0.0052, loss=0.0394
+epoch 40/45 edge_loss=0.0333, title_loss=0.0048, loss=0.0381
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 013/120 loss=0.0746  P=0.616 R=0.616 F1=0.616  lr=4.00e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0325, title_loss=0.0039, loss=0.0364
+epoch 40/45 edge_loss=0.0322, title_loss=0.0045, loss=0.0367
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 014/120 loss=0.0762  P=0.615 R=0.615 F1=0.615  lr=4.00e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0317, title_loss=0.0037, loss=0.0354
+epoch 40/45 edge_loss=0.0305, title_loss=0.0037, loss=0.0342
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 015/120 loss=0.0740  P=0.646 R=0.646 F1=0.646  lr=3.99e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0309, title_loss=0.0032, loss=0.0341
+epoch 40/45 edge_loss=0.0298, title_loss=0.0033, loss=0.0331
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 016/120 loss=0.0735  P=0.652 R=0.652 F1=0.652  lr=3.99e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0314, title_loss=0.0032, loss=0.0346
+epoch 40/45 edge_loss=0.0303, title_loss=0.0034, loss=0.0337
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 017/120 loss=0.0787  P=0.632 R=0.632 F1=0.632  lr=3.98e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0293, title_loss=0.0033, loss=0.0326
+epoch 40/45 edge_loss=0.0286, title_loss=0.0028, loss=0.0314
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 018/120 loss=0.0754  P=0.655 R=0.655 F1=0.655  lr=3.97e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0281, title_loss=0.0038, loss=0.0319
+epoch 40/45 edge_loss=0.0283, title_loss=0.0029, loss=0.0312
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 019/120 loss=0.0760  P=0.651 R=0.651 F1=0.651  lr=3.96e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0276, title_loss=0.0028, loss=0.0304
+epoch 40/45 edge_loss=0.0276, title_loss=0.0029, loss=0.0304
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 020/120 loss=0.0776  P=0.645 R=0.645 F1=0.645  lr=3.95e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0267, title_loss=0.0033, loss=0.0300
+epoch 40/45 edge_loss=0.0262, title_loss=0.0032, loss=0.0294
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 021/120 loss=0.0775  P=0.650 R=0.650 F1=0.650  lr=3.93e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0262, title_loss=0.0028, loss=0.0289
+epoch 40/45 edge_loss=0.0254, title_loss=0.0027, loss=0.0281
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 022/120 loss=0.0776  P=0.651 R=0.651 F1=0.651  lr=3.92e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0253, title_loss=0.0026, loss=0.0279
+epoch 40/45 edge_loss=0.0250, title_loss=0.0026, loss=0.0276
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 023/120 loss=0.0785  P=0.655 R=0.655 F1=0.655  lr=3.90e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0244, title_loss=0.0029, loss=0.0273
+epoch 40/45 edge_loss=0.0244, title_loss=0.0030, loss=0.0274
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 024/120 loss=0.0800  P=0.658 R=0.658 F1=0.658  lr=3.88e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0239, title_loss=0.0031, loss=0.0270
+epoch 40/45 edge_loss=0.0237, title_loss=0.0024, loss=0.0261
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 025/120 loss=0.0823  P=0.653 R=0.653 F1=0.653  lr=3.86e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0235, title_loss=0.0030, loss=0.0265
+epoch 40/45 edge_loss=0.0234, title_loss=0.0030, loss=0.0264
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 026/120 loss=0.0825  P=0.654 R=0.654 F1=0.654  lr=3.84e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0226, title_loss=0.0029, loss=0.0256
+epoch 40/45 edge_loss=0.0230, title_loss=0.0025, loss=0.0255
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 027/120 loss=0.0838  P=0.651 R=0.651 F1=0.651  lr=3.81e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0219, title_loss=0.0027, loss=0.0246
+epoch 40/45 edge_loss=0.0225, title_loss=0.0028, loss=0.0253
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 028/120 loss=0.0855  P=0.651 R=0.651 F1=0.651  lr=3.79e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0221, title_loss=0.0025, loss=0.0245
+epoch 40/45 edge_loss=0.0224, title_loss=0.0022, loss=0.0246
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 029/120 loss=0.0865  P=0.650 R=0.649 F1=0.649  lr=3.76e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0219, title_loss=0.0021, loss=0.0240
+epoch 40/45 edge_loss=0.0218, title_loss=0.0025, loss=0.0243
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 030/120 loss=0.0891  P=0.651 R=0.651 F1=0.651  lr=3.73e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0217, title_loss=0.0017, loss=0.0234
+epoch 40/45 edge_loss=0.0210, title_loss=0.0022, loss=0.0233
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 031/120 loss=0.0895  P=0.654 R=0.654 F1=0.654  lr=3.70e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0209, title_loss=0.0023, loss=0.0232
+epoch 40/45 edge_loss=0.0207, title_loss=0.0023, loss=0.0230
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 032/120 loss=0.0914  P=0.647 R=0.647 F1=0.647  lr=3.67e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0203, title_loss=0.0026, loss=0.0229
+epoch 40/45 edge_loss=0.0210, title_loss=0.0021, loss=0.0231
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 033/120 loss=0.0939  P=0.649 R=0.649 F1=0.649  lr=3.64e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0196, title_loss=0.0032, loss=0.0229
+epoch 40/45 edge_loss=0.0197, title_loss=0.0025, loss=0.0222
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 034/120 loss=0.0955  P=0.650 R=0.650 F1=0.650  lr=3.60e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0193, title_loss=0.0022, loss=0.0216
+epoch 40/45 edge_loss=0.0195, title_loss=0.0022, loss=0.0217
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 035/120 loss=0.0963  P=0.642 R=0.642 F1=0.642  lr=3.57e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0198, title_loss=0.0019, loss=0.0217
+epoch 40/45 edge_loss=0.0189, title_loss=0.0023, loss=0.0211
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 036/120 loss=0.0958  P=0.644 R=0.644 F1=0.644  lr=3.53e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0192, title_loss=0.0015, loss=0.0207
+epoch 40/45 edge_loss=0.0191, title_loss=0.0031, loss=0.0222
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 037/120 loss=0.0955  P=0.643 R=0.643 F1=0.643  lr=3.49e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0188, title_loss=0.0026, loss=0.0215
+epoch 40/45 edge_loss=0.0184, title_loss=0.0022, loss=0.0205
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 038/120 loss=0.0979  P=0.639 R=0.639 F1=0.639  lr=3.45e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0187, title_loss=0.0023, loss=0.0210
+epoch 40/45 edge_loss=0.0189, title_loss=0.0019, loss=0.0208
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 039/120 loss=0.0989  P=0.642 R=0.642 F1=0.642  lr=3.41e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0180, title_loss=0.0031, loss=0.0212
+epoch 40/45 edge_loss=0.0182, title_loss=0.0019, loss=0.0202
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 040/120 loss=0.1008  P=0.642 R=0.642 F1=0.642  lr=3.37e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0178, title_loss=0.0023, loss=0.0201
+epoch 40/45 edge_loss=0.0178, title_loss=0.0032, loss=0.0211
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 041/120 loss=0.1018  P=0.640 R=0.640 F1=0.640  lr=3.33e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0178, title_loss=0.0024, loss=0.0202
+epoch 40/45 edge_loss=0.0176, title_loss=0.0026, loss=0.0202
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 042/120 loss=0.1024  P=0.637 R=0.637 F1=0.637  lr=3.28e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0169, title_loss=0.0025, loss=0.0194
+epoch 40/45 edge_loss=0.0177, title_loss=0.0025, loss=0.0202
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 043/120 loss=0.1035  P=0.634 R=0.634 F1=0.634  lr=3.24e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0170, title_loss=0.0023, loss=0.0193
+epoch 40/45 edge_loss=0.0172, title_loss=0.0023, loss=0.0195
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 044/120 loss=0.1049  P=0.635 R=0.635 F1=0.635  lr=3.19e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0172, title_loss=0.0026, loss=0.0198
+epoch 40/45 edge_loss=0.0171, title_loss=0.0022, loss=0.0193
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 045/120 loss=0.1048  P=0.635 R=0.635 F1=0.635  lr=3.15e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0168, title_loss=0.0022, loss=0.0190
+epoch 40/45 edge_loss=0.0166, title_loss=0.0022, loss=0.0188
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 046/120 loss=0.1060  P=0.641 R=0.641 F1=0.641  lr=3.10e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0164, title_loss=0.0033, loss=0.0197
+epoch 40/45 edge_loss=0.0165, title_loss=0.0029, loss=0.0194
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 047/120 loss=0.1110  P=0.638 R=0.638 F1=0.638  lr=3.05e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0163, title_loss=0.0019, loss=0.0182
+epoch 40/45 edge_loss=0.0165, title_loss=0.0020, loss=0.0184
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 048/120 loss=0.1099  P=0.645 R=0.645 F1=0.645  lr=3.00e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0156, title_loss=0.0030, loss=0.0186
+epoch 40/45 edge_loss=0.0155, title_loss=0.0022, loss=0.0177
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 049/120 loss=0.1119  P=0.647 R=0.647 F1=0.647  lr=2.95e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0156, title_loss=0.0022, loss=0.0178
+epoch 40/45 edge_loss=0.0159, title_loss=0.0024, loss=0.0183
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 050/120 loss=0.1147  P=0.656 R=0.655 F1=0.656  lr=2.90e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0155, title_loss=0.0023, loss=0.0178
+epoch 40/45 edge_loss=0.0154, title_loss=0.0025, loss=0.0179
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 051/120 loss=0.1163  P=0.655 R=0.655 F1=0.655  lr=2.84e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0151, title_loss=0.0016, loss=0.0168
+epoch 40/45 edge_loss=0.0154, title_loss=0.0020, loss=0.0174
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 052/120 loss=0.1184  P=0.658 R=0.658 F1=0.658  lr=2.79e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0149, title_loss=0.0036, loss=0.0185
+epoch 40/45 edge_loss=0.0146, title_loss=0.0025, loss=0.0170
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 053/120 loss=0.1204  P=0.656 R=0.656 F1=0.656  lr=2.74e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0151, title_loss=0.0035, loss=0.0186
+epoch 40/45 edge_loss=0.0148, title_loss=0.0025, loss=0.0173
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 054/120 loss=0.1181  P=0.650 R=0.650 F1=0.650  lr=2.68e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0142, title_loss=0.0021, loss=0.0163
+epoch 40/45 edge_loss=0.0142, title_loss=0.0029, loss=0.0171
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 055/120 loss=0.1204  P=0.656 R=0.656 F1=0.656  lr=2.63e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0143, title_loss=0.0016, loss=0.0159
+epoch 40/45 edge_loss=0.0143, title_loss=0.0048, loss=0.0192
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 056/120 loss=0.1211  P=0.657 R=0.657 F1=0.657  lr=2.57e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0141, title_loss=0.0022, loss=0.0163
+epoch 40/45 edge_loss=0.0144, title_loss=0.0023, loss=0.0167
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 057/120 loss=0.1218  P=0.659 R=0.659 F1=0.659  lr=2.52e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0140, title_loss=0.0021, loss=0.0161
+epoch 40/45 edge_loss=0.0132, title_loss=0.0028, loss=0.0160
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 058/120 loss=0.1256  P=0.657 R=0.657 F1=0.657  lr=2.46e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0136, title_loss=0.0023, loss=0.0159
+epoch 40/45 edge_loss=0.0146, title_loss=0.0029, loss=0.0174
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 059/120 loss=0.1282  P=0.651 R=0.651 F1=0.651  lr=2.40e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0139, title_loss=0.0025, loss=0.0164
+epoch 40/45 edge_loss=0.0135, title_loss=0.0019, loss=0.0154
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 060/120 loss=0.1234  P=0.655 R=0.655 F1=0.655  lr=2.35e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0134, title_loss=0.0020, loss=0.0154
+epoch 40/45 edge_loss=0.0132, title_loss=0.0033, loss=0.0165
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 061/120 loss=0.1231  P=0.655 R=0.655 F1=0.655  lr=2.29e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0131, title_loss=0.0027, loss=0.0158
+epoch 40/45 edge_loss=0.0141, title_loss=0.0019, loss=0.0160
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 062/120 loss=0.1256  P=0.652 R=0.652 F1=0.652  lr=2.23e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0132, title_loss=0.0029, loss=0.0161
+epoch 40/45 edge_loss=0.0131, title_loss=0.0029, loss=0.0160
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 063/120 loss=0.1295  P=0.654 R=0.654 F1=0.654  lr=2.17e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0129, title_loss=0.0032, loss=0.0160
+epoch 40/45 edge_loss=0.0122, title_loss=0.0030, loss=0.0152
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 064/120 loss=0.1276  P=0.657 R=0.656 F1=0.656  lr=2.12e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0125, title_loss=0.0023, loss=0.0148
+epoch 40/45 edge_loss=0.0127, title_loss=0.0029, loss=0.0156
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 065/120 loss=0.1267  P=0.658 R=0.658 F1=0.658  lr=2.06e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0127, title_loss=0.0019, loss=0.0146
+epoch 40/45 edge_loss=0.0128, title_loss=0.0027, loss=0.0155
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 066/120 loss=0.1281  P=0.659 R=0.659 F1=0.659  lr=2.00e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0128, title_loss=0.0025, loss=0.0153
+epoch 40/45 edge_loss=0.0129, title_loss=0.0024, loss=0.0152
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 067/120 loss=0.1309  P=0.659 R=0.659 F1=0.659  lr=1.94e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0128, title_loss=0.0044, loss=0.0172
+epoch 40/45 edge_loss=0.0121, title_loss=0.0031, loss=0.0151
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 068/120 loss=0.1333  P=0.662 R=0.662 F1=0.662  lr=1.88e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0126, title_loss=0.0022, loss=0.0148
+epoch 40/45 edge_loss=0.0128, title_loss=0.0028, loss=0.0157
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 069/120 loss=0.1314  P=0.662 R=0.662 F1=0.662  lr=1.82e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0129, title_loss=0.0023, loss=0.0152
+epoch 40/45 edge_loss=0.0122, title_loss=0.0021, loss=0.0142
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 070/120 loss=0.1321  P=0.661 R=0.661 F1=0.661  lr=1.77e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0125, title_loss=0.0032, loss=0.0157
+epoch 40/45 edge_loss=0.0120, title_loss=0.0024, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 071/120 loss=0.1348  P=0.662 R=0.662 F1=0.662  lr=1.71e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0123, title_loss=0.0025, loss=0.0148
+epoch 40/45 edge_loss=0.0122, title_loss=0.0033, loss=0.0155
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 072/120 loss=0.1325  P=0.668 R=0.667 F1=0.667  lr=1.65e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0122, title_loss=0.0026, loss=0.0148
+epoch 40/45 edge_loss=0.0119, title_loss=0.0027, loss=0.0146
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 073/120 loss=0.1345  P=0.671 R=0.671 F1=0.671  lr=1.59e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0120, title_loss=0.0022, loss=0.0143
+epoch 40/45 edge_loss=0.0121, title_loss=0.0033, loss=0.0154
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 074/120 loss=0.1301  P=0.675 R=0.675 F1=0.675  lr=1.54e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0123, title_loss=0.0023, loss=0.0147
+epoch 40/45 edge_loss=0.0116, title_loss=0.0036, loss=0.0152
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 075/120 loss=0.1355  P=0.674 R=0.674 F1=0.674  lr=1.48e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0124, title_loss=0.0034, loss=0.0157
+epoch 40/45 edge_loss=0.0116, title_loss=0.0033, loss=0.0149
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 076/120 loss=0.1353  P=0.676 R=0.676 F1=0.676  lr=1.43e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0120, title_loss=0.0028, loss=0.0148
+epoch 40/45 edge_loss=0.0118, title_loss=0.0026, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 077/120 loss=0.1350  P=0.678 R=0.678 F1=0.678  lr=1.37e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0119, title_loss=0.0029, loss=0.0148
+epoch 40/45 edge_loss=0.0119, title_loss=0.0021, loss=0.0140
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 078/120 loss=0.1338  P=0.682 R=0.682 F1=0.682  lr=1.31e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0119, title_loss=0.0039, loss=0.0158
+epoch 40/45 edge_loss=0.0117, title_loss=0.0021, loss=0.0138
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 079/120 loss=0.1325  P=0.682 R=0.682 F1=0.682  lr=1.26e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0118, title_loss=0.0026, loss=0.0145
+epoch 40/45 edge_loss=0.0119, title_loss=0.0030, loss=0.0149
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 080/120 loss=0.1377  P=0.680 R=0.680 F1=0.680  lr=1.21e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0116, title_loss=0.0025, loss=0.0140
+epoch 40/45 edge_loss=0.0119, title_loss=0.0031, loss=0.0150
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 081/120 loss=0.1355  P=0.682 R=0.681 F1=0.682  lr=1.15e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0122, title_loss=0.0030, loss=0.0152
+epoch 40/45 edge_loss=0.0111, title_loss=0.0026, loss=0.0138
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 082/120 loss=0.1344  P=0.680 R=0.680 F1=0.680  lr=1.10e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0113, title_loss=0.0024, loss=0.0137
+epoch 40/45 edge_loss=0.0115, title_loss=0.0026, loss=0.0142
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 083/120 loss=0.1338  P=0.679 R=0.679 F1=0.679  lr=1.05e-04  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0114, title_loss=0.0022, loss=0.0136
+epoch 40/45 edge_loss=0.0115, title_loss=0.0021, loss=0.0135
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 084/120 loss=0.1383  P=0.681 R=0.681 F1=0.681  lr=9.99e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0118, title_loss=0.0025, loss=0.0143
+epoch 40/45 edge_loss=0.0113, title_loss=0.0024, loss=0.0137
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 085/120 loss=0.1375  P=0.683 R=0.683 F1=0.683  lr=9.49e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0114, title_loss=0.0034, loss=0.0147
+epoch 40/45 edge_loss=0.0108, title_loss=0.0028, loss=0.0136
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 086/120 loss=0.1408  P=0.682 R=0.682 F1=0.682  lr=9.00e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0037, loss=0.0149
+epoch 40/45 edge_loss=0.0116, title_loss=0.0037, loss=0.0153
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 087/120 loss=0.1420  P=0.685 R=0.685 F1=0.685  lr=8.52e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0114, title_loss=0.0035, loss=0.0150
+epoch 40/45 edge_loss=0.0114, title_loss=0.0032, loss=0.0146
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 088/120 loss=0.1376  P=0.686 R=0.686 F1=0.686  lr=8.05e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0116, title_loss=0.0029, loss=0.0145
+epoch 40/45 edge_loss=0.0113, title_loss=0.0037, loss=0.0150
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 089/120 loss=0.1377  P=0.689 R=0.689 F1=0.689  lr=7.59e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0025, loss=0.0137
+epoch 40/45 edge_loss=0.0110, title_loss=0.0035, loss=0.0145
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 090/120 loss=0.1391  P=0.688 R=0.688 F1=0.688  lr=7.13e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0115, title_loss=0.0032, loss=0.0147
+epoch 40/45 edge_loss=0.0110, title_loss=0.0028, loss=0.0138
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 091/120 loss=0.1392  P=0.689 R=0.689 F1=0.689  lr=6.69e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0039, loss=0.0150
+epoch 40/45 edge_loss=0.0110, title_loss=0.0030, loss=0.0140
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 092/120 loss=0.1425  P=0.688 R=0.688 F1=0.688  lr=6.27e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0108, title_loss=0.0034, loss=0.0142
+epoch 40/45 edge_loss=0.0109, title_loss=0.0036, loss=0.0145
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 093/120 loss=0.1398  P=0.689 R=0.689 F1=0.689  lr=5.85e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0034, loss=0.0145
+epoch 40/45 edge_loss=0.0115, title_loss=0.0026, loss=0.0141
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 094/120 loss=0.1439  P=0.689 R=0.689 F1=0.689  lr=5.44e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0114, title_loss=0.0023, loss=0.0137
+epoch 40/45 edge_loss=0.0115, title_loss=0.0023, loss=0.0138
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 095/120 loss=0.1430  P=0.690 R=0.690 F1=0.690  lr=5.05e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0116, title_loss=0.0043, loss=0.0159
+epoch 40/45 edge_loss=0.0111, title_loss=0.0039, loss=0.0149
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 096/120 loss=0.1436  P=0.690 R=0.690 F1=0.690  lr=4.67e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0116, title_loss=0.0030, loss=0.0145
+epoch 40/45 edge_loss=0.0112, title_loss=0.0032, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 097/120 loss=0.1438  P=0.693 R=0.692 F1=0.693  lr=4.30e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0035, loss=0.0146
+epoch 40/45 edge_loss=0.0113, title_loss=0.0037, loss=0.0150
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 098/120 loss=0.1444  P=0.691 R=0.691 F1=0.691  lr=3.95e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0023, loss=0.0134
+epoch 40/45 edge_loss=0.0113, title_loss=0.0025, loss=0.0138
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 099/120 loss=0.1458  P=0.691 R=0.691 F1=0.691  lr=3.61e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0109, title_loss=0.0026, loss=0.0135
+epoch 40/45 edge_loss=0.0112, title_loss=0.0030, loss=0.0142
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 100/120 loss=0.1471  P=0.691 R=0.691 F1=0.691  lr=3.28e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0038, loss=0.0151
+epoch 40/45 edge_loss=0.0109, title_loss=0.0043, loss=0.0152
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 101/120 loss=0.1458  P=0.691 R=0.691 F1=0.691  lr=2.97e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0106, title_loss=0.0026, loss=0.0132
+epoch 40/45 edge_loss=0.0113, title_loss=0.0031, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 102/120 loss=0.1474  P=0.691 R=0.691 F1=0.691  lr=2.67e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0027, loss=0.0138
+epoch 40/45 edge_loss=0.0110, title_loss=0.0031, loss=0.0141
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 103/120 loss=0.1480  P=0.691 R=0.691 F1=0.691  lr=2.39e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0105, title_loss=0.0039, loss=0.0144
+epoch 40/45 edge_loss=0.0110, title_loss=0.0028, loss=0.0138
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 104/120 loss=0.1493  P=0.692 R=0.691 F1=0.692  lr=2.12e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0104, title_loss=0.0041, loss=0.0144
+epoch 40/45 edge_loss=0.0109, title_loss=0.0028, loss=0.0136
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 105/120 loss=0.1497  P=0.692 R=0.692 F1=0.692  lr=1.87e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0110, title_loss=0.0028, loss=0.0138
+epoch 40/45 edge_loss=0.0111, title_loss=0.0043, loss=0.0153
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 106/120 loss=0.1518  P=0.693 R=0.693 F1=0.693  lr=1.63e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0031, loss=0.0142
+epoch 40/45 edge_loss=0.0109, title_loss=0.0035, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 107/120 loss=0.1522  P=0.693 R=0.692 F1=0.693  lr=1.41e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0108, title_loss=0.0032, loss=0.0140
+epoch 40/45 edge_loss=0.0111, title_loss=0.0034, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 108/120 loss=0.1531  P=0.692 R=0.692 F1=0.692  lr=1.20e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0109, title_loss=0.0038, loss=0.0148
+epoch 40/45 edge_loss=0.0115, title_loss=0.0030, loss=0.0144
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 109/120 loss=0.1533  P=0.693 R=0.692 F1=0.693  lr=1.01e-05  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0025, loss=0.0137
+epoch 40/45 edge_loss=0.0106, title_loss=0.0035, loss=0.0141
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 110/120 loss=0.1538  P=0.693 R=0.693 F1=0.693  lr=8.37e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0106, title_loss=0.0046, loss=0.0152
+epoch 40/45 edge_loss=0.0111, title_loss=0.0046, loss=0.0157
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 111/120 loss=0.1544  P=0.693 R=0.693 F1=0.693  lr=6.78e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0048, loss=0.0159
+epoch 40/45 edge_loss=0.0108, title_loss=0.0032, loss=0.0141
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 112/120 loss=0.1552  P=0.693 R=0.693 F1=0.693  lr=5.36e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0107, title_loss=0.0036, loss=0.0143
+epoch 40/45 edge_loss=0.0104, title_loss=0.0048, loss=0.0153
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 113/120 loss=0.1558  P=0.693 R=0.693 F1=0.693  lr=4.11e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0031, loss=0.0143
+epoch 40/45 edge_loss=0.0111, title_loss=0.0030, loss=0.0141
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 114/120 loss=0.1566  P=0.693 R=0.693 F1=0.693  lr=3.02e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0107, title_loss=0.0045, loss=0.0152
+epoch 40/45 edge_loss=0.0112, title_loss=0.0033, loss=0.0145
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 115/120 loss=0.1572  P=0.693 R=0.693 F1=0.693  lr=2.09e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0110, title_loss=0.0024, loss=0.0134
+epoch 40/45 edge_loss=0.0109, title_loss=0.0034, loss=0.0143
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 116/120 loss=0.1580  P=0.693 R=0.693 F1=0.693  lr=1.34e-06  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0113, title_loss=0.0048, loss=0.0160
+epoch 40/45 edge_loss=0.0104, title_loss=0.0052, loss=0.0156
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 117/120 loss=0.1585  P=0.693 R=0.693 F1=0.693  lr=7.51e-07  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0111, title_loss=0.0039, loss=0.0150
+epoch 40/45 edge_loss=0.0106, title_loss=0.0035, loss=0.0141
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 118/120 loss=0.1591  P=0.693 R=0.693 F1=0.693  lr=3.32e-07  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0106, title_loss=0.0039, loss=0.0145
+epoch 40/45 edge_loss=0.0106, title_loss=0.0030, loss=0.0136
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 119/120 loss=0.1599  P=0.693 R=0.693 F1=0.693  lr=8.25e-08  E_features=True A_features=True
+epoch 20/45 edge_loss=0.0112, title_loss=0.0040, loss=0.0152
+epoch 40/45 edge_loss=0.0109, title_loss=0.0036, loss=0.0145
+Validating ['swde_HTMLgraphs/movie/movie/movie-allmovie(2000)'] website type
+Epoch 120/120 loss=0.1606  P=0.693 R=0.693 F1=0.693  lr=1.64e-09  E_features=True A_features=True
+Traceback (most recent call last):
+  File "/vol/bitbucket/mjh24/IAEA-thesis/GAT.py", line 635, in <module>
+    #eval_edge_model(model, val_loader, focal_loss, device="cuda", use_E_attr=True, use_A_attr=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/vol/bitbucket/mjh24/IAEA-thesis/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/vol/bitbucket/mjh24/IAEA-thesis/GAT.py", line 481, in eval_edge_model
+    loss = edge_loss + kwargs["lambda_title"] * title_loss
+                       ~~~~~~^^^^^^^^^^^^^^^^
+KeyError: 'lambda_title'
