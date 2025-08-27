@@ -11,3 +11,4 @@ urllib3==2.5.0
 ipykernel
 beautifulsoup4
 transformers
+openai
