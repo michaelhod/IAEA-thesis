@@ -16,10 +16,10 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipe
 # LABELS_NAME2ID = {v: k for k, v in LABELS_ID2NAME.items()}
 
 LABEL_DEFS: Dict[int, str] = {
-    1: "one side states the other's purpose or type (e.g., title/heading)",
-    2: "one side adds meaningful descriptive information to the other",
+    1: "L is R's title or category heading",
+    2: "L contains key contextual information that R is missing",
     # 3: "one side is an example of the other",
-    3: "they are peer or sibling categories/items",
+    3: "L and R are sibling items",
     4: "there is no helpful relation between them",
 }
 CANDIDATE_DEFS: List[str] = [LABEL_DEFS[i] for i in sorted(LABEL_DEFS.keys())]
@@ -121,7 +121,7 @@ def classify_link_pairs_zero_shot(
         if return_scores:
             debug_scores.append(avg)
 
-    return (final_labels, debug_scores) if return_scores else (final_labels, None)
+    return (final_labels, debug_scores) if return_scores else final_labels
 
 
 # ======================
