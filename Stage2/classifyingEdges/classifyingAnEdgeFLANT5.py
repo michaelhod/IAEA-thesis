@@ -19,7 +19,7 @@ LABEL_DEFS: Dict[int, str] = {
     1: "L is R's title or category heading",
     2: "L contains key contextual information that R is missing",
     # 3: "one side is an example of the other",
-    3: "L and R are sibling items",
+    3: "L and R contain the same information",
     4: "there is no helpful relation between them",
 }
 CANDIDATE_DEFS: List[str] = [LABEL_DEFS[i] for i in sorted(LABEL_DEFS.keys())]
@@ -55,7 +55,7 @@ class DebertaZeroShot:
         self,
         premises: List[str],
         candidate_defs: List[str],
-        hypothesis_template: str = "The relation between L and R is that {}.",
+        hypothesis_template: str = "For the purpose of fact extraction, the relation between L and R is that {}.",
         batch_size: int = 16,
     ) -> List[Dict[str, float]]:
         """
