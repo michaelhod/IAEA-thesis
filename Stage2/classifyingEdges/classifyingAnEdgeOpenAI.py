@@ -1,13 +1,12 @@
-# pip install openai>=1.40.0 tiktoken
 from openai import OpenAI
 import tiktoken
-import os, re, sys, math
+import os, re, sys
 
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-nano")
+OPENAI_MODEL = "gpt-5-nano"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Context window controls (tokens). Set real numbers via env for your model.
-CONTEXT_WINDOW_TOKENS = 400,000
+CONTEXT_WINDOW_TOKENS = 400000
 SAFETY_MARGIN_TOKENS  = 1000    # buffer to avoid overflows
 
 # USD per 1K tokens (configure to your model’s pricing)
@@ -37,7 +36,7 @@ USER_HEADER = "Classify each pair below. Output a plain, space-separated list of
 USER_FOOTER = "\n\nOutput:"
 
 # ---------- token helpers ----------
-ENC = tiktoken.get_encoding("cl100k_base")
+ENC = tiktoken.get_encoding("o200k_base")
 
 def _count_tokens(s: str) -> int:
     return len(ENC.encode(s))
@@ -74,7 +73,7 @@ def _create_batches(pairs):
             line = _create_entry_line((i - batch_start) + 1, pairs[i][0], pairs[i][1])
             line_tokens = _count_tokens(line)
             next_used = used + line_tokens
-            next_out_guess = (total_out_tokens + MAX_NEW_TOKENS_GUESS_PER_LABEL)
+            next_out_guess = total_out_tokens + MAX_NEW_TOKENS_GUESS_PER_LABEL
             if next_used + next_out_guess + SAFETY_MARGIN_TOKENS > CONTEXT_WINDOW_TOKENS:
                 break
             lines.append(line)
@@ -95,28 +94,26 @@ def classify_link_pairs_minimal(pairs, dry_run_confirm=True):
     """
     results = []
 
-    batches = _create_batches(pairs)
+    batches = list(_create_batches(pairs))
     
-    in_tokens = _count_tokens(SYSTEM_PROMPT)*len(batches) + sum(batches[:,3])
-    out_tokens_guess = sum(batches[:,4])
-    est_cost = _estimate_cost(in_tokens, out_tokens_guess)
+    total_in_tokens  = sum(b[3] for b in batches)
+    total_out_tokens = sum(b[4] for b in batches)
+    est_cost = _estimate_cost(total_in_tokens, total_out_tokens)
     if dry_run_confirm:
         print(f"Expected total price: ${est_cost}")
-        ans = input("Type Yes to continue this batch (anything else aborts): ").strip()
-        if ans != "Yes":
-            print("Aborted by user.")
-            sys.exit(1)
+        # ans = input("Type Yes to continue this batch (anything else aborts): ").strip()
+        # if ans != "Yes":
+        #     print("Aborted by user.")
+        #     sys.exit(1)
 
-    for batch_idx, (lo, hi, lines_joined, _, out_guess) in enumerate(batches, start=1):
+    for batch_idx, (lo, hi, lines_joined, used_in_tokens, out_tokens_guess) in enumerate(batches, start=1):
 
         user_prompt = USER_HEADER + lines_joined + USER_FOOTER
 
         # token+cost estimate
-        in_tokens = _count_tokens(SYSTEM_PROMPT) + _count_tokens(user_prompt)
-        out_tokens_guess = max(4, out_guess)
-        est_cost = _estimate_cost(in_tokens, out_tokens_guess)
+        est_cost = _estimate_cost(used_in_tokens, out_tokens_guess)
 
-        print(f"\nBatch {batch_idx} (pairs {lo}..{hi-1}): ~input tokens={in_tokens:,}, ~output tokens={out_tokens_guess:,}, "
+        print(f"\nBatch {batch_idx} (pairs {lo}..{hi-1}): ~input tokens={used_in_tokens:,}, ~output tokens={out_tokens_guess:,}, "
               f"est. cost=${est_cost:.4f} (IN=${PRICE_IN_PER_1M}/1M, OUT=${PRICE_OUT_PER_1M}/1M)")
 
         # Call API (no JSON; tiny output)
@@ -126,10 +123,12 @@ def classify_link_pairs_minimal(pairs, dry_run_confirm=True):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0,
+            reasoning={"effort": "minimal"},   # or "low"/"medium"/"high" depending on model
+            text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            max_output_tokens=(hi - lo) * 10,  # upper bound for safety
         )
 
-        text = resp.output[0].content[0].text.strip()
+        text = resp.output_text.strip()
 
         # Parse exactly (hi - lo) labels in {1,2,3,4}
         want = hi - lo
