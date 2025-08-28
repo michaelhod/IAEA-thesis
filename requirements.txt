@@ -12,3 +12,4 @@ ipykernel
 beautifulsoup4
 transformers
 openai
+tiktoken
