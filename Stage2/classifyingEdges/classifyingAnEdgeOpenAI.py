@@ -21,28 +21,25 @@ MAX_NEW_TOKENS_GUESS_PER_LABEL = 2
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-SYSTEM_PROMPT = """You are a classifier. Given pairs of linked texts from an HTML document, decide their relationship for the purpose of fact extraction.
-Output ONLY the category number for each pair.
+SYSTEM_PROMPT = """You are a classifier. Given pairs of linked texts from an HTML document, decide their relationship for fact extraction.
+Output the classification number for each pair.
 
 Categories (choose exactly one per pair):
-1 = Context/information: Two entries can be combined into a single fact-like statement (e.g., “X is Y,” “X has Y,” “X happened in Y”), even if each entry alone already looks like a complete statement. As long as the combination is linguistically plausible, count it as Category 1. Do not require correctness or exclusivity — overlap or redundancy is fine if the pair enables a new inference. 
+1 = Context/information: LEFT contains any key contextual information that RIGHT is missing when extracting facts from RIGHT. Do not require correctness or exclusivity, as long as the fact is linguistically plausible.
     (e.g., ["Director", "Andy Murray"] → "Andy Murray is a director"; 
-    ["the ap1000 pwr is the best in the market", "the next generation small modular reactor for remote applications"] -> “The ap1000 pwr is the next generation small modular reactor for remote applications.”).
-2 = Sibling items: both entries stand alone and do not add factual content to each other. This includes generic labels, buttons, or sibling list items. 
-    (e.g., ["ap300 smr", "the ap300 smr is the next evolution of the licensed ap1000 technology"] → the second already contains the fact; the first adds nothing new. 
+    ["the IPhone XE is the best in the market", "we included it in this year's small phone competition"] -> “The IPhone XE will be included in this year's small phone competition”).
+2 = Sibling items: LEFT only contains contextual information that RIGHT already has when extracting facts from RIGHT. 
+    (e.g., ["England football team", "the England football team will play tomorrow"] → the second already contains the fact; the first adds nothing new. 
     ["afc teams", "nfc teams"] -> sibling content, no fact to extract). 
-3 = No helpful relation: the entries are not meaningfully connected for extracting facts. 
-    (e.g., ["Read more", "Imperial College London"]). 
+3 = No helpful relation: the entries are not meaningfully connected for extracting facts.  
 
 Important: 
 - Always think in terms of whether combining the two entries enables a fact that one alone does not provide. 
-- Always evaluate the relationship only within the specific pair of entries to compare. Do not use information from other pairs, prior knowledge, or assumptions about what the entries might mean elsewhere. The decision must be based solely on whether combining these two entries alone produces a new factual statement that neither provides by itself. 
-- If neither entry is useful to the other, the pair is category 3.
-- Output format: Output exactly {N} integers separated by single spaces, e.g. "1 2 3".
+- Judge only within each pair, no outside knowledge.
 """
 
-USER_HEADER = "Classify each pair below one by one. Output a plain, space-separated list of exactly {N} integers only.\n\n"
-USER_FOOTER = "\n\nOutput {N} integers only:"
+USER_HEADER = "\nClassify each, one by one\n\n"
+USER_FOOTER = "\n\nOutput {N} space separated integers ONLY:"
 
 # ---------- token helpers ----------
 ENC = tiktoken.get_encoding("o200k_base")#"cl100k_base")
@@ -97,7 +94,7 @@ def _create_batches(pairs, max_batch_size=None):
 
         yield (batch_start, i, "".join(lines), used, total_out_tokens)
 
-def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int | None = 30, return_raw_response_and_cost=False):
+def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int | None = 1, return_raw_response_and_cost=False):
     """
     pairs: list[[left, right]]
     return: list[int] with values in {1,2,3}; printed as "1 2 3 ..."
@@ -108,7 +105,7 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
     
     total_in_tokens  = sum(b[3] for b in batches)
     total_out_tokens = sum(b[4] for b in batches)
-    est_cost = _estimate_cost(total_in_tokens, total_out_tokens+15000*len(batches))
+    est_cost = _estimate_cost(total_in_tokens, total_out_tokens+500*len(batches))
     if dry_run_confirm:
         print(f"Expected total price: ${est_cost}")
         ans = input("Type Yes to continue this batch (anything else aborts): ").strip()
@@ -121,10 +118,10 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
 
     for batch_idx, (lo, hi, lines_joined, used_in_tokens, out_tokens_guess) in enumerate(batches, start=1):
 
-        user_prompt = USER_HEADER.format(N=(hi - lo)) + lines_joined + USER_FOOTER.format(N=(hi - lo))
+        user_prompt = USER_HEADER + lines_joined + USER_FOOTER.format(N=(hi - lo))
 
         # token+cost estimate
-        est_cost = _estimate_cost(used_in_tokens, out_tokens_guess+15000)
+        est_cost = _estimate_cost(used_in_tokens, out_tokens_guess+500)
 
         print(f"\nBatch {batch_idx} (pairs {lo}..{hi-1}): ~input tokens={used_in_tokens:,}, ~output tokens={out_tokens_guess:,}, "
               f"est. cost=${est_cost:.4f} (IN=${PRICE_IN_PER_1M}/1M, OUT=${PRICE_OUT_PER_1M}/1M)")
@@ -136,7 +133,7 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
                 {"role": "system", "content": SYSTEM_PROMPT.format(N=(hi - lo))},
                 {"role": "user", "content": user_prompt},
             ],
-            reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
+            reasoning={"effort": "low"},   # "minimal"/"low"/"medium"/"high" depending on model
             text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
             #max_output_tokens=(hi - lo) * 10,  # upper bound for safety
             #temperature=0.0
@@ -170,8 +167,10 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
         rawText += "[NEWBATCH]"+ text
 
         results.extend(int(x) for x in nums)
+        print("output so far: ", rawText)
+        print("results so far: ", results)
 
-    return results, runningCostTotal, rawText if return_raw_response_and_cost else results
+    return (results, runningCostTotal, rawText) if return_raw_response_and_cost else results
 
 
 if __name__ == "__main__":
@@ -315,7 +314,7 @@ if __name__ == "__main__":
 ['ap1000 pwr', 'product spotlights'],
     ]
 
-    labels, _, _ = classify_link_pairs_openAI(sample_pairs[:40], dry_run_confirm=True)
+    labels = classify_link_pairs_openAI(sample_pairs[:40], dry_run_confirm=True, max_batch_size=1)
     print("\nFinal labels:")
     print(" ".join(str(x) for x in labels))
 
@@ -328,4 +327,12 @@ if __name__ == "__main__":
 
     # y_old_prompt = "1 1 1 1 2 2 2 2 3 1 1 1 2 2 1 1 1 1 2 2 2 2 1 1 1 1 2 2 1 1 1 1 1 1 2 2 2 2 1" #only 39 values
     # y_old_prompt = [int(i) for i in y_old_prompt.split()]
-    # y_new_prompt = [2, 2, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3]
+    low_y_5_per_but_low_reasoning = [1, 2, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 2, 2, 2, 2, 1, 1, 3, 1, 2, 3, 3, 3, 3, 3] # cost 0.001826  ~500 reasoning tokens per batch for 5 on low
+    min_y_1_per_row_no_reasoning = [2, 2, 1, 3, 3, 3, 3, 3, 1, 1, 1, 1, 3, 2, 1, 2, 1, 1, 1, 2, 3, 3, 2, 2, 1, 1, 3, 3, 1, 1, 2, 3, 1, 1, 3, 3, 3, 3, 3, 3] # cost 0.001169    0 reasoning tokens, 1 per batch
+    min_y_1_per_row_no_reasoning_reduced_prompt = [1, 1, 2, 1, 3, 2, 2, 2, 1, 2, 2, 1, 2, 2, 1, 3, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 2, 1, 1, 1, 1, 2, 3, 1, 3, 2, 2, 2, 2, 2] # cost 0.0005   1 per batch
+    min_y_1_per_row_stripping_examples = [1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 3] # cost ~0.000789   1 per batch
+    med_y_40_per_row_stripping_examples = "2 1 3 1 3 3 3 3 3 3 2 1 3 3 3 1 2 2 3 1 3 3 2 1 3 3 3 2 3 2 1 2 3 3 3 3 3 3 3" #only 39 values Cost ~0.00434 10560 reasoning tokens 40 per batch
+    med_y_40_per_row_stripping_examples = [int(i) for i in med_y_40_per_row_stripping_examples.split()]
+    low_y_4_per_row_stripping_examples = [2, 1, 1, 1, 3, 1, 1, 1, 3, 3, 2, 2, 3, 3, 3, 3, 1, 2, 3, 3, 3, 2, 2, 1, 3, 3, 3, 3, 2, 3, 1, 2, 1, 1, 3, 3, 3, 3, 1, 1]# cost 0.003 
+    # y_new_prompt = [2, 2, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3] # This cost 0.00233  ~5500 reasoning tokens
+    #metrics(med_y_40_per_row_stripping_examples, y_true[:39])
