@@ -16,14 +16,13 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipe
 # LABELS_NAME2ID = {v: k for k, v in LABELS_ID2NAME.items()}
 
 LABEL_DEFS: Dict[int, str] = {
-    1: "L is R's title or category heading",
-    2: "L contains key contextual information that R is missing",
+    1: "L contains key contextual information directly relevant to R that R is missing",
     # 3: "one side is an example of the other",
-    3: "L and R contain the same information",
-    4: "there is no helpful relation between them",
+    2: "L only contains key contextual information directly relevant to R that R has",
+    3: "there is no helpful relation between them",
 }
 CANDIDATE_DEFS: List[str] = [LABEL_DEFS[i] for i in sorted(LABEL_DEFS.keys())]
-UNHELP_DEF = LABEL_DEFS[4]
+UNHELP_DEF = LABEL_DEFS[3]
 
 # ======================================
 # Zero-shot DeBERTa-v3 (MoritzLaurer) backend
@@ -80,7 +79,7 @@ def classify_link_pairs_zero_shot(
     pairs: List[Tuple[str, str]],
     batch_size: int = 16,
     bidirectional: bool = True,
-    confidence_Factor = 0.7,
+    confidence_Factor = 0.85,
     return_scores: bool = False,
 ) -> Tuple[List[int], Optional[List[Dict[int, float]]]]:
     """
@@ -110,11 +109,19 @@ def classify_link_pairs_zero_shot(
                 avg_prob = s1[i].get(defn, 0.0)
             avg[lab_id] = float(avg_prob)
 
-        best_non4 = max(avg[k] for k in (1, 2, 3, 4))
-        if avg[4] > best_non4*confidence_Factor:
-            pred = 4
+        best_non3 = max(avg[k] for k in (1, 2))
+        if avg[3] > best_non3*confidence_Factor:
+            pred = 3
         else:
             pred = int(max(avg.items(), key=lambda kv: kv[1])[0])
+        # This logic picks 3 if it is higher than the best score * factor
+        # Then it picks 2 if it is higher than the best score * factor
+        # if avg[3] > best_non3*confidence_Factor_over_norelation:
+        #     pred = 3
+        # elif avg[2] > best_non3*confidence_Factor_over_irrelevantrelation:
+        #     pred = 2 
+        # else:
+        #     pred = int(max(avg.items(), key=lambda kv: kv[1])[0])
 
 
         final_labels.append(pred)
@@ -154,7 +161,7 @@ if __name__ == "__main__":
         sample_pairs,
         batch_size=8,
         bidirectional=True,
-        confidence_Factor=0.7,
+        confidence_Factor=0.85,
         return_scores=True,
     )
     for (pair, lab, sc) in zip(sample_pairs, labels_zs, scores_zs or []):
