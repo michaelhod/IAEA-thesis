@@ -126,7 +126,7 @@ def classify_link_pairs_zero_shot(
 def classify_link_pairs_zero_shot_two_step(
     pairs: List[Tuple[str, str]],
     batch_size: int = 16,
-    bidirectional: bool = True,
+    bidirectional: bool = False,
     return_scores=False
     ):
     label_presence = {0: "L is of a different domain to R",
@@ -301,7 +301,7 @@ if __name__ == "__main__":
     labels_zs, scores_zs = classify_link_pairs_zero_shot_two_step(
         sample_pairs,
         batch_size=8,
-        bidirectional=True,
+        bidirectional=False,
         return_scores=True
     )
     for (pair, lab, sc_p, sc_t) in zip(sample_pairs, labels_zs, scores_zs[0], scores_zs[1] or []):
