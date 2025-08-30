@@ -39,18 +39,17 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
     for i in range(0, len(texts), batch_size):
         batch_texts = texts[i:i+batch_size]
         prompts = [f"""Decide if the text looks like a website button or navigation label.
-                Return 1 for button/navigation, or 0 otherwise. Output only a single digit.
+Return 1 for button/navigation, or 0 otherwise. Output only a single digit.
 
-                Examples of 1: "Read more", "Learn more", "Explore", "Get started", "Try free", "Watch video",
-                "Sign in", "Sign up", "My account", "Download", "Contact", "Pricing", "Products", "Docs",
-                "Blog", "Home", "About", "Privacy Policy", "Terms", "Fr/En", "Menu", "Next", "Previous", "Back".
+Examples of 1: "Read more", "Learn more", "Explore", "Get started", "Try free", "Watch video",
+"Sign in", "Sign up", "My account", "Download", "Contact", "Pricing", "Products", "Docs",
+"Blog", "Home", "About", "Privacy Policy", "Terms", "Fr/En", "Menu", "Next", "Previous", "Back".
 
-                Examples of 0: sentences or descriptive copy, names of people or products in context, long summaries.
+Examples of 0: sentences or descriptive copy, names of people or products in context, long summaries.
 
-                TEXT: {text}
+TEXT: {text}
 
-                Answer with 1 or 0 only:
-                """ for text in batch_texts
+Answer with 1 or 0 only:""" for text in batch_texts
                 ]
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
@@ -141,6 +140,46 @@ Answer with the number only:"""
         results.append(ans)
     return results
 
+def classify_node_needsContext(nodes, batch_size=16, max_new_tokens=4, device=None):
+    """
+    nodes: list of node text
+    returns: list of ints (0-1), one per pair
+    """
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    results = []
+    for i in range(0, len(nodes), batch_size):
+        batch = nodes[i:i+batch_size]
+
+        prompts = [f"""Classify the QUERY text into only one of the three categories.
+
+Choose one:
+    0: A phrase does not exist;
+    1: A simple ambiguous phrase exists. There are unknown objects or subjects referenced;
+    2: A simple unambigous phrase exists. There are no unknown objects or subjects referenced;
+                   
+QUERY: {txt}
+    
+Output one number only:""" for txt in batch]
+
+        inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
+        with torch.no_grad():
+            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
+
+        decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        for text in decoded:
+            text = text.strip()
+            try:
+                idx = int(text[0])
+                if idx not in LABELS:
+                    idx = 0
+            except:
+                idx = 0
+            results.append(idx)
+
+    return results
 
 if __name__ == "__main__":
     #sample_pairs = [["british columbia canada", "set in"], ["set in", "british columbia canada"], ["for sexuality and some language", "mpaa reasons"], ["mpaa reasons", "for sexuality and some language"], ["addict", "accident"], ["accident", "addict"], ["other related works", "is related to"], ["is related to", "other related works"], ["drugs", "accident"], ["accident", "drugs"], ["in a minor key", "moods"], ["moods", "in a minor key"], ["drugs", "addict"], ["addict", "drugs"], ["canada", "r"], ["r", "canada"], ["director", "atom egoyan"], ["atom egoyan", "director"], ["panavision", "corrections to this entry"], ["lawyer", "accident"], ["accident", "lawyer"], ["category", "feature"], ["feature", "category"], ["lawyer", "addict"], ["addict", "lawyer"], ["year", "1997"], ["1997", "year"], ["drama", "genres"], ["genres", "drama"], ["panavision", "cinematic process"], ["cinematic process", "panavision"], ["british columbia canada", "corrections to this entry"], ["lawyer", "drugs"], ["drugs", "lawyer"]]
@@ -272,13 +311,15 @@ if __name__ == "__main__":
 ['product spotlights', 'westinghouseiq'],
 ['ap1000 pwr', 'product spotlights'],
     ]
-    labels = classify_link_pairs_flan_batched(sample_pairs, batch_size=64)
+    import numpy as np
+    sample_pairs = np.unique(sample_pairs)
+    labels = classify_node_needsContext(sample_pairs, batch_size=64)
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
 
-    import sys
-    sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
-    from Stage2.classifyingEdges.metrics import metrics
-    y_true_str = "2 2 1 1 ? ? ? ? 3 3 1 1 3 3 2 2 2 2 1 1 ? ? 1 1 3 3 1 1 3 3 1 1 1 1 2 2 2 2 2 2"
-    y_true = [3 if tok == "?" else int(tok) for tok in y_true_str.split()]
-    metrics(labels[:40],y_true)
+    # import sys
+    # sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
+    # from Stage2.classifyingEdges.metrics import metrics
+    # y_true_str = "2 2 1 1 ? ? ? ? 3 3 1 1 3 3 2 2 2 2 1 1 ? ? 1 1 3 3 1 1 3 3 1 1 1 1 2 2 2 2 2 2"
+    # y_true = [3 if tok == "?" else int(tok) for tok in y_true_str.split()]
+    # metrics(labels[:40],y_true)
