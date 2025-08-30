@@ -77,7 +77,7 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
 
     return results, isTxtInstruct
 
-def _classify_links_stage(pairs, batch_size=16, max_new_tokens=4, device=None, stage=0):
+def _classify_pair_relation(pairs, prompt, batch_size=16, max_new_tokens=4, device=None):
     """
     pairs: list of [left, right]
     returns: list of ints (0-1), one per pair
@@ -89,36 +89,7 @@ def _classify_links_stage(pairs, batch_size=16, max_new_tokens=4, device=None, s
     for i in range(0, len(pairs), batch_size):
         batch = pairs[i:i+batch_size]
 
-        if stage==0:
-            prompts = [
-                f"""Classify the contextual relation between the L and R text:
-
-Choose only one classification:
-    1: L is of a similar domain to R,
-    0: L is definitely irrelevant to R
-
-L: {left}
-
-R: {right}
-
-Answer with the number only:""" for left, right in batch]
-        
-        elif stage==1:
-            prompts = [
-                f"""For the purpose of fact extraction, classify the relation between the L and R text:
-
-Choose only one classification:
-    0: L only contains contextual information that R already has,
-    1: L contains any key contextual information that R is missing
-
-L: {left}
-
-R: {right}
-
-Answer with the number only:""" for left, right in batch]
-            
-        else:
-            raise RuntimeError("stage input can only be 1 or 0")
+        prompts = [prompt.format(left=l, right=r) for l, r in batch]
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
@@ -140,13 +111,36 @@ Answer with the number only:""" for left, right in batch]
 
 def classify_link_pairs_flan_batched(pairs, batch_size=16, max_new_tokens=4, device=None):
     #Since it is done 1 by 1, we can pass them indivdually
-    prescence = _classify_links_stage(pairs, batch_size, max_new_tokens, device, stage=0)
-    typeofpair = _classify_links_stage(pairs, batch_size, max_new_tokens, device, stage=1)
+    prescence_prompt = """Classify the contextual relation between the L and R text:
+
+Choose only one classification:
+    1: L is of a similar domain to R;
+    0: L is definitely irrelevant to R;
+
+L: {left}
+
+R: {right}
+
+Answer with the number only:"""
+    typeofpair_prompt = """For the purpose of fact extraction, classify the relation between the L and R text:
+
+Choose only one classification:
+    0: L only contains contextual information that R already has;
+    1: L contains any key contextual information that R is missing;
+
+L: {left}
+
+R: {right}
+
+Answer with the number only:"""
+    prescence = _classify_pair_relation(pairs, prescence_prompt, batch_size, max_new_tokens, device)
+    typeofpair = _classify_pair_relation(pairs, typeofpair_prompt, batch_size, max_new_tokens, device)
     results = []
     for p, t in zip(prescence, typeofpair):
         ans = 3 if p==0 else 2 if t==0 else 1
         results.append(ans)
     return results
+
 
 if __name__ == "__main__":
     #sample_pairs = [["british columbia canada", "set in"], ["set in", "british columbia canada"], ["for sexuality and some language", "mpaa reasons"], ["mpaa reasons", "for sexuality and some language"], ["addict", "accident"], ["accident", "addict"], ["other related works", "is related to"], ["is related to", "other related works"], ["drugs", "accident"], ["accident", "drugs"], ["in a minor key", "moods"], ["moods", "in a minor key"], ["drugs", "addict"], ["addict", "drugs"], ["canada", "r"], ["r", "canada"], ["director", "atom egoyan"], ["atom egoyan", "director"], ["panavision", "corrections to this entry"], ["lawyer", "accident"], ["accident", "lawyer"], ["category", "feature"], ["feature", "category"], ["lawyer", "addict"], ["addict", "lawyer"], ["year", "1997"], ["1997", "year"], ["drama", "genres"], ["genres", "drama"], ["panavision", "cinematic process"], ["cinematic process", "panavision"], ["british columbia canada", "corrections to this entry"], ["lawyer", "drugs"], ["drugs", "lawyer"]]
