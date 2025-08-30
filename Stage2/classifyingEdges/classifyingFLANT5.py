@@ -77,46 +77,7 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
 
     return results, isTxtInstruct
 
-# def classify_a_relation_batched(pairs, batch_size=16, max_new_tokens=4, device=None, bidirectional=True):
-#     """
-#     pairs: list of [left, right]
-#     returns: list of ints (0-1), one per pair
-#     """
-#     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-#     model.to(device)
-
-#     results = []
-#     for i in range(0, len(pairs), batch_size):
-#         batch = pairs[i:i+batch_size]
-
-#         prompts = [
-#             f"""Decide if the pair [A, B] can be 
-# Pair:
-# ["{left}","{right}"]
-
-# Answer with 0 or 1 only (no words, no punctuation):"""
-#             for left, right in batch
-#         ]
-
-#         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
-#         with torch.no_grad():
-#             outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, output_scores=True)
-
-#         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-#         for text in decoded:
-#             text = text.strip()
-#             try:
-#                 idx = int(text[0])
-#                 if idx not in LABELS:
-#                     idx = 0
-#             except:
-#                 idx = 0
-#             results.append(idx)
-
-#     return results
-
-def classify_link_presence_flan_batched(pairs, batch_size=16, max_new_tokens=4, device=None):
+def _classify_links_stage(pairs, batch_size=16, max_new_tokens=4, device=None, stage=0):
     """
     pairs: list of [left, right]
     returns: list of ints (0-1), one per pair
@@ -128,8 +89,9 @@ def classify_link_presence_flan_batched(pairs, batch_size=16, max_new_tokens=4, 
     for i in range(0, len(pairs), batch_size):
         batch = pairs[i:i+batch_size]
 
-        prompts = [
-            f"""Classify the contextual relation between the L and R text:
+        if stage==0:
+            prompts = [
+                f"""Classify the contextual relation between the L and R text:
 
 Choose only one classification:
     1: L is of a similar domain to R,
@@ -139,42 +101,11 @@ L: {left}
 
 R: {right}
 
-Answer with the number only:""" #Be absolutely sure, otherwise return "3".
-            for left, right in batch
-        ]
-
-        inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
-        with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
-
-        decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-        for text in decoded:
-            text = text.strip()
-            try:
-                idx = int(text[0])
-                if idx not in LABELS:
-                    idx = 0
-            except:
-                idx = 0
-            results.append(idx)
-
-    return results
-
-def classify_link_relation_flan_batched(pairs, batch_size=16, max_new_tokens=4, device=None):
-    """
-    pairs: list of [left, right]
-    returns: list of ints (1-2), one per pair
-    """
-    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-
-    results = []
-    for i in range(0, len(pairs), batch_size):
-        batch = pairs[i:i+batch_size]
-
-        prompts = [
-            f"""For the purpose of fact extraction, classify the relation between the L and R text:
+Answer with the number only:""" for left, right in batch]
+        
+        elif stage==1:
+            prompts = [
+                f"""For the purpose of fact extraction, classify the relation between the L and R text:
 
 Choose only one classification:
     0: L only contains contextual information that R already has,
@@ -184,9 +115,10 @@ L: {left}
 
 R: {right}
 
-Answer with the number only:""" #Be absolutely sure, otherwise return "3".
-            for left, right in batch
-        ]
+Answer with the number only:""" for left, right in batch]
+            
+        else:
+            raise RuntimeError("stage input can only be 1 or 0")
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
@@ -208,15 +140,13 @@ Answer with the number only:""" #Be absolutely sure, otherwise return "3".
 
 def classify_link_pairs_flan_batched(pairs, batch_size=16, max_new_tokens=4, device=None):
     #Since it is done 1 by 1, we can pass them indivdually
-    prescence = classify_link_presence_flan_batched(pairs, batch_size, max_new_tokens, device)
-    typeofpair = classify_link_relation_flan_batched(pairs, batch_size, max_new_tokens, device)
+    prescence = _classify_links_stage(pairs, batch_size, max_new_tokens, device, stage=0)
+    typeofpair = _classify_links_stage(pairs, batch_size, max_new_tokens, device, stage=1)
     results = []
     for p, t in zip(prescence, typeofpair):
         ans = 3 if p==0 else 2 if t==0 else 1
         results.append(ans)
     return results
-
-
 
 if __name__ == "__main__":
     #sample_pairs = [["british columbia canada", "set in"], ["set in", "british columbia canada"], ["for sexuality and some language", "mpaa reasons"], ["mpaa reasons", "for sexuality and some language"], ["addict", "accident"], ["accident", "addict"], ["other related works", "is related to"], ["is related to", "other related works"], ["drugs", "accident"], ["accident", "drugs"], ["in a minor key", "moods"], ["moods", "in a minor key"], ["drugs", "addict"], ["addict", "drugs"], ["canada", "r"], ["r", "canada"], ["director", "atom egoyan"], ["atom egoyan", "director"], ["panavision", "corrections to this entry"], ["lawyer", "accident"], ["accident", "lawyer"], ["category", "feature"], ["feature", "category"], ["lawyer", "addict"], ["addict", "lawyer"], ["year", "1997"], ["1997", "year"], ["drama", "genres"], ["genres", "drama"], ["panavision", "cinematic process"], ["cinematic process", "panavision"], ["british columbia canada", "corrections to this entry"], ["lawyer", "drugs"], ["drugs", "lawyer"]]
