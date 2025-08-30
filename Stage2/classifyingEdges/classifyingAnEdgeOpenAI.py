@@ -4,7 +4,7 @@ from openai import OpenAI
 import tiktoken
 import os, re, sys
 
-OPENAI_MODEL = "gpt-5-nano"
+OPENAI_MODEL = "gpt-4.1-nano"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Context window controls (tokens). Set real numbers via env for your model.
@@ -12,14 +12,14 @@ CONTEXT_WINDOW_TOKENS = 400000
 SAFETY_MARGIN_TOKENS  = 1000    # buffer to avoid overflows
 
 # USD per 1K tokens (configure to your model’s pricing)
-PRICE_IN_PER_1M  = 0.05
+PRICE_IN_PER_1M  = 0.1
 PRICE_OUT_PER_1M = 0.4
 
 # Per-text truncation for long inputs
 MAX_TOKENS_PER_TEXT = 128
 MAX_NEW_TOKENS_GUESS_PER_LABEL = 2
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key="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")#OPENAI_API_KEY)
 
 SYSTEM_PROMPT = """You are a classifier. Given pairs of linked texts from an HTML document, decide their relationship for fact extraction.
 Output the classification number for each pair.
@@ -42,7 +42,7 @@ USER_HEADER = "\nClassify each, one by one\n\n"
 USER_FOOTER = "\n\nOutput {N} space separated integers ONLY:"
 
 # ---------- token helpers ----------
-ENC = tiktoken.get_encoding("o200k_base")#"cl100k_base")
+ENC = tiktoken.get_encoding("cl100k_base")#"o200k_base")
 
 def _count_tokens(s: str) -> int:
     return len(ENC.encode(s))
@@ -105,7 +105,7 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
     
     total_in_tokens  = sum(b[3] for b in batches)
     total_out_tokens = sum(b[4] for b in batches)
-    est_cost = _estimate_cost(total_in_tokens, total_out_tokens+500*len(batches))
+    est_cost = _estimate_cost(total_in_tokens, total_out_tokens)
     if dry_run_confirm:
         print(f"Expected total price: ${est_cost}")
         ans = input("Type Yes to continue this batch (anything else aborts): ").strip()
@@ -121,7 +121,7 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
         user_prompt = USER_HEADER + lines_joined + USER_FOOTER.format(N=(hi - lo))
 
         # token+cost estimate
-        est_cost = _estimate_cost(used_in_tokens, out_tokens_guess+500)
+        est_cost = _estimate_cost(used_in_tokens, out_tokens_guess)
 
         print(f"\nBatch {batch_idx} (pairs {lo}..{hi-1}): ~input tokens={used_in_tokens:,}, ~output tokens={out_tokens_guess:,}, "
               f"est. cost=${est_cost:.4f} (IN=${PRICE_IN_PER_1M}/1M, OUT=${PRICE_OUT_PER_1M}/1M)")
@@ -133,10 +133,11 @@ def classify_link_pairs_openAI(pairs, dry_run_confirm=True, max_batch_size: int 
                 {"role": "system", "content": SYSTEM_PROMPT.format(N=(hi - lo))},
                 {"role": "user", "content": user_prompt},
             ],
-            reasoning={"effort": "low"},   # "minimal"/"low"/"medium"/"high" depending on model
-            text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
+            #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
             #max_output_tokens=(hi - lo) * 10,  # upper bound for safety
-            #temperature=0.0
+            temperature=0.0,
+            #presence_penalty=0.0 # Make it more negative to make the answer more on topic
         )
 
         text = resp.output_text.strip()
@@ -335,4 +336,4 @@ if __name__ == "__main__":
     med_y_40_per_row_stripping_examples = [int(i) for i in med_y_40_per_row_stripping_examples.split()]
     low_y_4_per_row_stripping_examples = [2, 1, 1, 1, 3, 1, 1, 1, 3, 3, 2, 2, 3, 3, 3, 3, 1, 2, 3, 3, 3, 2, 2, 1, 3, 3, 3, 3, 2, 3, 1, 2, 1, 1, 3, 3, 3, 3, 1, 1]# cost 0.003 
     # y_new_prompt = [2, 2, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3] # This cost 0.00233  ~5500 reasoning tokens
-    #metrics(med_y_40_per_row_stripping_examples, y_true[:39])
+    #metrics(low_y_4_per_row_stripping_examples, y_true[:40])
