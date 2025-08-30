@@ -145,7 +145,7 @@ Answer with the number only:""" #Be absolutely sure, otherwise return "3".
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, output_scores=True)
+            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
 
         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
@@ -190,7 +190,7 @@ Answer with the number only:""" #Be absolutely sure, otherwise return "3".
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, output_scores=True)
+            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
 
         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
@@ -209,7 +209,6 @@ Answer with the number only:""" #Be absolutely sure, otherwise return "3".
 def classify_link_pairs_flan_batched(pairs, batch_size=16, max_new_tokens=4, device=None):
     #Since it is done 1 by 1, we can pass them indivdually
     prescence = classify_link_presence_flan_batched(pairs, batch_size, max_new_tokens, device)
-    print(prescence)
     typeofpair = classify_link_relation_flan_batched(pairs, batch_size, max_new_tokens, device)
     results = []
     for p, t in zip(prescence, typeofpair):

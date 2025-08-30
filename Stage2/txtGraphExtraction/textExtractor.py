@@ -42,9 +42,12 @@ def is_inside_any_classname(el, classes):
     return False
 
 def hidden_by_inline_style(el):
-    s = style_dict(el)
-    if s.get('display') == 'none': return True
-    if s.get('visibility') == 'hidden': return True
+    p = el
+    while p is not None:
+        s = style_dict(p)  
+        if s.get('display') == 'none': return True
+        if s.get('visibility') == 'hidden': return True
+        p = p.getparent()
     return False
 
 def non_empty_text(el):
