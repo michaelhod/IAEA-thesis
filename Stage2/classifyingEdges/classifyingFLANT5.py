@@ -140,45 +140,52 @@ Answer with the number only:"""
         results.append(ans)
     return results
 
-def _classify_node(nodes, prompt, batch_size=16, max_new_tokens=4, device=None):
+@torch.no_grad()
+def score_label_next_token(prompt_ids, outputOptions):
     """
-    nodes: list of node text
-    returns: list of ints (0-1), one per pair
+    Returns the logits for the FIRST generated token ('0' vs '1').
+    For T5, the decoder starts from <pad> and attends to encoder.
     """
+    # Encode once
+    enc = model.get_encoder()(input_ids=prompt_ids, attention_mask=(prompt_ids != tokenizer.pad_token_id))
+    # Start decoder with a single start token (pad) for T5
+    start = torch.full((prompt_ids.size(0), 1), tokenizer.pad_token_id, dtype=torch.long, device=prompt_ids.device)
+    out = model(encoder_outputs=enc, decoder_input_ids=start)
+    logits = out.logits[:, -1, :]                  # [batch, vocab]
+    return logits[:, outputOptions]                        # [batch, 2] -> columns: [logit('0'), logit('1')]
+
+def _classify_node(texts, prompt, outputOptions, device=None, calibration_bias=None):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    results = []
-    for i in range(0, len(nodes), batch_size):
-        batch = nodes[i:i+batch_size]
+    prompts = [prompt.format(txt=str(t).replace("{","{{").replace("}","}}")) for t in texts]
+    batch = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
+    logits_01 = score_label_next_token(batch["input_ids"], outputOptions)  # [B,2]
 
-        prompts = [prompt.format(txt=txt) for txt in batch]
+    if calibration_bias is not None:
+        logits_01 = logits_01 - calibration_bias  # subtract bias per label
 
-        inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
-        with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
+    preds = torch.argmax(logits_01, dim=-1).tolist()  # 0->label "0", 1->label "1"
+    return preds
 
-        decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-        for text in decoded:
-            text = text.strip()
-            try:
-                idx = int(text[0])
-                if idx not in LABELS:
-                    idx = 0
-            except:
-                idx = 0
-            results.append(idx)
-
-    return results
+def _estimate_calibration_bias(prompt, outputOptions, device=None):
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    null_queries = ["", "N/A", "---", "???", "title", "keywords", "summary"]  # content-free / fragment-y
+    prompts = [prompt.format(txt=q) for q in null_queries]
+    batch = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
+    logits_01 = score_label_next_token(batch["input_ids"], outputOptions)   # [K,2]
+    # Average bias toward each label on null inputs
+    bias = logits_01.mean(dim=0, keepdim=True)               # [1,2]
+    return bias
 
 def classify_node_needsContext(nodes, batch_size=16, max_new_tokens=4, device=None):
     classify_sentence="""TASK:
     Classify the QUERY text into only one classification. Output one number only
 
 CLASSES:
-    0: A subject and predicate (verb or explicit property) does not exist;
-    1: A subject and predicate (verb or explicit property) exists;
+    0: The QUERY contains a sentence clause;
+    1: The QUERY does not contain a sentence clause;
                    
 QUERY: {txt}
 
@@ -187,18 +194,24 @@ ANSWER:"""
     Classify the QUERY text into only one classification. Output one number only
 
 CLASSES:
-    0: There are unknown objects or subjects referenced;
-    1: All objects and subjects are named;
+    0: Both a subject exists AND a predicate (verb or explicit property) exists;
+    1: Either a subject does not exist OR a predicate (verb or explicit property) does not exist;
                    
 QUERY: {txt}
 
 ANSWER:"""
-    presence = _classify_node(nodes, classify_sentence)
+    zero_id = tokenizer("0", add_special_tokens=False).input_ids[0] #Token id for 0
+    one_id  = tokenizer("1", add_special_tokens=False).input_ids[0] #Token id for 1
+    output_tokens = torch.tensor([zero_id, one_id])
+
+    bias = _estimate_calibration_bias(classify_sentence, output_tokens)
+    presence = _classify_node(nodes, classify_sentence, output_tokens, calibration_bias=bias)
     print(presence)
-    typeofsentece = _classify_node(nodes, classify_type)
+    typeofsentece = _classify_node(nodes, classify_type, output_tokens)
+
     results = []
     for p, t in zip(presence, typeofsentece):
-        ans = 1 if p==0 else 2 if t==0 else 3
+        ans = 1 if p==1 else 0# 1 if p==1 else 2 if t==1 else 3
         results.append(ans)
     return results
     
@@ -339,6 +352,7 @@ if __name__ == "__main__":
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
 
+    last = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1]
 
     best_attempt = [1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 0, 2, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 0, 1, 1, 2]
     # import sys
