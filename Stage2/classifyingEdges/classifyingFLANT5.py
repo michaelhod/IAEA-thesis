@@ -140,7 +140,7 @@ Answer with the number only:"""
         results.append(ans)
     return results
 
-def classify_node_needsContext(nodes, batch_size=16, max_new_tokens=4, device=None):
+def _classify_node(nodes, prompt, batch_size=16, max_new_tokens=4, device=None):
     """
     nodes: list of node text
     returns: list of ints (0-1), one per pair
@@ -152,16 +152,7 @@ def classify_node_needsContext(nodes, batch_size=16, max_new_tokens=4, device=No
     for i in range(0, len(nodes), batch_size):
         batch = nodes[i:i+batch_size]
 
-        prompts = [f"""Classify the QUERY text into only one of the three categories.
-
-Choose one:
-    0: A phrase does not exist;
-    1: A simple ambiguous phrase exists. There are unknown objects or subjects referenced;
-    2: A simple unambigous phrase exists. There are no unknown objects or subjects referenced;
-                   
-QUERY: {txt}
-    
-Output one number only:""" for txt in batch]
+        prompts = [prompt.format(txt=txt) for txt in batch]
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
@@ -180,6 +171,37 @@ Output one number only:""" for txt in batch]
             results.append(idx)
 
     return results
+
+def classify_node_needsContext(nodes, batch_size=16, max_new_tokens=4, device=None):
+    classify_sentence="""TASK:
+    Classify the QUERY text into only one classification. Output one number only
+
+CLASSES:
+    0: A subject and predicate (verb or explicit property) does not exist;
+    1: A subject and predicate (verb or explicit property) exists;
+                   
+QUERY: {txt}
+
+ANSWER:"""
+    classify_type="""TASK:
+    Classify the QUERY text into only one classification. Output one number only
+
+CLASSES:
+    0: There are unknown objects or subjects referenced;
+    1: All objects and subjects are named;
+                   
+QUERY: {txt}
+
+ANSWER:"""
+    presence = _classify_node(nodes, classify_sentence)
+    print(presence)
+    typeofsentece = _classify_node(nodes, classify_type)
+    results = []
+    for p, t in zip(presence, typeofsentece):
+        ans = 1 if p==0 else 2 if t==0 else 3
+        results.append(ans)
+    return results
+    
 
 if __name__ == "__main__":
     #sample_pairs = [["british columbia canada", "set in"], ["set in", "british columbia canada"], ["for sexuality and some language", "mpaa reasons"], ["mpaa reasons", "for sexuality and some language"], ["addict", "accident"], ["accident", "addict"], ["other related works", "is related to"], ["is related to", "other related works"], ["drugs", "accident"], ["accident", "drugs"], ["in a minor key", "moods"], ["moods", "in a minor key"], ["drugs", "addict"], ["addict", "drugs"], ["canada", "r"], ["r", "canada"], ["director", "atom egoyan"], ["atom egoyan", "director"], ["panavision", "corrections to this entry"], ["lawyer", "accident"], ["accident", "lawyer"], ["category", "feature"], ["feature", "category"], ["lawyer", "addict"], ["addict", "lawyer"], ["year", "1997"], ["1997", "year"], ["drama", "genres"], ["genres", "drama"], ["panavision", "cinematic process"], ["cinematic process", "panavision"], ["british columbia canada", "corrections to this entry"], ["lawyer", "drugs"], ["drugs", "lawyer"]]
@@ -317,6 +339,8 @@ if __name__ == "__main__":
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
 
+
+    best_attempt = [1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 0, 2, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 0, 1, 1, 2]
     # import sys
     # sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
     # from Stage2.classifyingEdges.metrics import metrics
