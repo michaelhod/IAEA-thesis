@@ -25,7 +25,7 @@ SYSTEM_PROMPT_SENTENCE = """TASK:
     You are a fact-finding classifier. Read the QUERY text and assign it one classification. Output the classification number for each pair
 
 CLASSES:
-    0: The text does not reference or allude to something unknown;
+    0: All subjects are known. The text does not reference or allude to something unknown;
     1: There are key unknown subjects referenced;
 """
 
@@ -413,7 +413,7 @@ if __name__ == "__main__":
     nano_4_labels = [1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1] # cost $ 0.000258
     mini_4_labels = [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010287999999999999
     nano_5_med = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0036251
-    nano_5_low = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0] # cost $ 0.00118055
+    nano_5_low = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0] # cost $ 0.0011048
 
     import sys
     sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
