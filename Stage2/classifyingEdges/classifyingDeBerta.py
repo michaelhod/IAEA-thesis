@@ -204,31 +204,19 @@ def _estimate_calibration_bias_for_hypothesis(hypothesis, device=None):
 # Public API mirroring yours
 # -------------------------
 
-def classify_node_needsContext(nodes):
+def classify_node_isSentence(nodes):
     """
     Two-pass test into DeBERTa NLI:
     - 'presence' pass: does the text look like a complete sentence? (1 if yes)
-    - 'type' pass: does the text LACK subject or predicate? (1 if lacks)
-    Final decision combines original combination:
     """
     # Hypotheses used for NLI (premise = input text)
     hypothesis_presence = "This text contains at least a sentence (ignoring punctuation)"
-    hypothesis_type = "Either the text lacks a subject or it lacks a predicate."
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # First pass: presence (complete sentence? -> 1)
     presence, probs_p = _classify_with_hypothesis(nodes, hypothesis_presence, device=device)
 
-    # Second pass (optional, preserved from your code): subject/predicate lack? -> 1 if lacks
-    typeofsentence, probs_t = _classify_with_hypothesis(nodes, hypothesis_type, device=device)
-
-    # Combine like your original (you only used 'presence' in the end)
-    results = []
-    for p, t in zip(presence, typeofsentence):
-        ans = 1 if p==0 else 2 if t==1 else 3
-        results.append(ans)
-    return results, (probs_p, probs_t)
+    return presence, probs_p
 
 
 
@@ -389,9 +377,9 @@ if __name__ == "__main__":
     sample_pairs = np.unique(sp)
     # -------- Zero-shot backend --------
     print("\n=== Zero-shot (MoritzLaurer DeBERTa-v3) ===")
-    labels_zs, scores_zs = classify_node_needsContext(sample_pairs.tolist())
-    for (pair, lab, sc_p, sc_t) in zip(sample_pairs, labels_zs, scores_zs[0], scores_zs[1]):
-        print(lab, pair, ("not-ent:", sc_p[0].item(), "ent:", sc_p[1].item()), " type: ", ("not-ent:", sc_t[0].item(), "ent:", sc_t[1].item()))
+    labels_zs, scores_zs = classify_node_isSentence(sample_pairs.tolist())
+    for (pair, lab, sc_p) in zip(sample_pairs, labels_zs, scores_zs):
+        print(lab, pair, ("not-ent:", sc_p[0].item(), "ent:", sc_p[1].item()))
 
     # Quick summary
     def hist(xs):

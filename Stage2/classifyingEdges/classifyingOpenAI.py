@@ -4,7 +4,7 @@ from openai import OpenAI
 import tiktoken
 import os, re, sys
 
-OPENAI_MODEL = "gpt-5-nano"
+OPENAI_MODEL = "gpt-4.1-mini"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Context window controls (tokens). Set real numbers via env for your model.
@@ -12,8 +12,8 @@ CONTEXT_WINDOW_TOKENS = 400000
 SAFETY_MARGIN_TOKENS  = 1000    # buffer to avoid overflows
 
 # USD per 1K tokens (configure to your model’s pricing)
-PRICE_IN_PER_1M  = 0.05
-PRICE_OUT_PER_1M = 0.4
+PRICE_IN_PER_1M  = 0.4
+PRICE_OUT_PER_1M = 1.6
 
 # Per-text truncation for long inputs
 MAX_TOKENS_PER_TEXT = 128
@@ -50,7 +50,7 @@ USER_HEADER = "\nClassify each, one by one\n\n"
 USER_FOOTER = "\n\nOutput {N} space separated integers ONLY:"
 
 # ---------- token helpers ----------
-ENC = tiktoken.get_encoding("o200k_base")#"cl100k_base")
+ENC = tiktoken.get_encoding("cl100k_base")#"o200k_base")
 
 def _count_tokens(s: str) -> int:
     return len(ENC.encode(s))
@@ -219,10 +219,10 @@ def classify_needsContext_openAI(texts, dry_run_confirm=True, batch_size: int | 
                 {"role": "system", "content": SYSTEM_PROMPT_SENTENCE},
                 {"role": "user", "content": user_prompt},
             ],
-            reasoning={"effort": "low"},   # "minimal"/"low"/"medium"/"high" depending on model
-            text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            #reasoning={"effort": "minimal"},   # "minimal"/"low"/"medium"/"high" depending on model
+            #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
             #max_output_tokens=(hi - lo) * 10,  # upper bound for safety
-            #temperature=0.0,
+            temperature=0.0,
             #presence_penalty=0.0 # Make it more negative to make the answer more on topic
         )
 
@@ -410,10 +410,13 @@ if __name__ == "__main__":
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
 
-    nano_4_labels = [1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1] # cost $ 0.000258
-    mini_4_labels = [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010287999999999999
-    nano_5_med = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0036251
+    nano_4_old = [1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1] # cost $ 0.000258
+    mini_4_old = [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010287999999999999
+    nano_5_med = [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0] # cost $ 0.0039208
     nano_5_low = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0] # cost $ 0.0011048
+    nano_5_min = [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1] # cost $ 0.00018320000000000006
+    nano_4 = [0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] # cost $ 0.00026770000000000006
+    mini_4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010708
 
     import sys
     sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
