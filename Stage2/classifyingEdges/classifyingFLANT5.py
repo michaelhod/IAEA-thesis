@@ -171,7 +171,7 @@ def _classify_node(texts, prompt, outputOptions, device=None, calibration_bias=N
 def _estimate_calibration_bias(prompt, outputOptions, device=None):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    null_queries = ["", "N/A", "---", "???", "title", "keywords", "summary", "country language"]  # content-free / fragment-y
+    null_queries = ["", "N/A", "---", "title", "keywords", "summary", "country language"]  # content-free / fragment-y
     prompts = [prompt.format(txt=q) for q in null_queries]
     batch = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
     logits_01 = score_label_next_token(batch["input_ids"], outputOptions)   # [K,2]
@@ -194,8 +194,8 @@ ANSWER:"""
     Classify the QUERY text into only one classification. Output one number only
 
 CLASSES:
-    0: Both a subject exists AND a predicate (verb or explicit property) exists;
-    1: Either a subject does not exist OR a predicate (verb or explicit property) does not exist;
+    0: The text does not reference something unknown;
+    1: There are unknowns in what is being talked about;
                    
 QUERY: {txt}
 
@@ -206,12 +206,13 @@ ANSWER:"""
 
     bias = _estimate_calibration_bias(classify_sentence, output_tokens)
     presence = _classify_node(nodes, classify_sentence, output_tokens, calibration_bias=bias)
-    print(presence)
-    typeofsentece = _classify_node(nodes, classify_type, output_tokens)
+    
+    bias = _estimate_calibration_bias(classify_type, output_tokens)
+    typeofsentece = _classify_node(nodes, classify_type, output_tokens, calibration_bias=bias)
 
     results = []
     for p, t in zip(presence, typeofsentece):
-        ans = 1 if p==1 else 0# 1 if p==1 else 2 if t==1 else 3
+        ans = 1 if t==1 else 0# 1 if p==1 else 2 if t==1 else 3
         results.append(ans)
     return results
     
@@ -349,7 +350,10 @@ if __name__ == "__main__":
     import numpy as np
     sample_pairs = np.unique(sample_pairs)
     labels = classify_node_needsContext(sample_pairs)
-    for pair, label in zip(sample_pairs, labels):
+    ifnore = [1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3]
+    for pair, label, flan in zip(sample_pairs, labels, ifnore):
+        if flan == 1:
+            continue
         print(label, pair)
 
     last = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1]
