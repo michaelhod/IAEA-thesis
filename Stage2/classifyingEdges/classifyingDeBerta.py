@@ -196,7 +196,7 @@ def _estimate_calibration_bias_for_hypothesis(hypothesis, device=None):
     Estimate average bias on fragment-like null queries for this hypothesis.
     Returns a [1,2] tensor you can subtract from future [B,2] logits.
     """
-    null_queries = ["", "N/A", "---", "???", "title", "keywords", "summary"]
+    null_queries = ["", "N/A", "---", "???", "title", "It isn't anything", "appointing"]
     logits_01 = _binary_entailment_logits(null_queries, hypothesis, device=device)  # [K,2]
     return logits_01.mean(dim=0, keepdim=True)  # [1,2]
 
@@ -218,7 +218,51 @@ def classify_node_isSentence(nodes):
 
     return presence, probs_p
 
+def classify_node_isCatgory(nodes, confidenceFactor=8/3, confidenceThreshold=0.8):
+    """
+    Two-pass test into DeBERTa NLI:
+    - 'presence' pass: does the text look like a value that needs a pair? (1 if yes)
+    'Yes' must be "confidenceFactor" as confidence or above "confidenceThreshold" (i.e "yes" is twice as likely as "no" or "yes" is above 0.5)
+    """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # Hypotheses used for NLI (premise = input text)
+    hypothesis_start = "This text is "
+    classes = ["only a proper noun", 
+                "only an attribute",
+                "only a language",
+                "briefly answering the question: Why?",
+                "a short modifier or add-on phrase that attaches to something else",
+                "a number or amount",
+                "a comparison phrase",
+                "only a category value", 
+                "only the name of a category"]
+
+    cur_probs = np.array([[0.0,0.0]]*len(nodes)) #check dimensions of this one
+    best_confidence = np.array([-np.inf]*len(nodes))
+    hyp_type = np.array([-1]*len(nodes))
+    is_any_hypo = np.array([0]*len(nodes))
+    for idx, c in enumerate(classes):
+        hypothesis = hypothesis_start + c
+        bias = _estimate_calibration_bias_for_hypothesis(hypothesis)
+        isHypo, probs_p = _classify_with_hypothesis(nodes, hypothesis, device=device, calibration_bias=bias)
+        
+        # Add a filter that you have to be 2x as confident OR at above at least a certain threshold
+        isHypo = isHypo & ((probs_p[:,0]*confidenceFactor < probs_p[:,1]) | (probs_p[:,1] > confidenceThreshold))
+
+        #Create mask so we know which entries to update. Only update confidence numbers that have the biggest difference
+        confidence = np.array(probs_p[:, 1] - probs_p[:, 0])          # (N,)
+        update_mask = np.array((confidence > best_confidence), dtype=bool)   # pick nodes we should update
+
+        # apply updates
+        is_any_hypo |= isHypo
+        best_confidence[update_mask] = confidence[update_mask]
+        cur_probs[update_mask] = probs_p[update_mask]
+        hyp_type[update_mask] = idx
+    
+    hyp_type = [classes[idx] if idx>=0 else "" for idx in hyp_type]
+
+    return is_any_hypo, (cur_probs, hyp_type)
 
 # ======================
 # Demo / smoke test
@@ -226,7 +270,7 @@ def classify_node_isSentence(nodes):
 
 if __name__ == "__main__":
     sample_pairs: List[Tuple[str, str]] = [
-        ("british columbia canada", "set in"),
+        ("british columbia canada", "Set in"),
         ("set in", "british columbia canada"),
         ("for sexuality and some language", "mpaa reasons"),
         ("mpaa reasons", "for sexuality and some language"),
@@ -371,15 +415,19 @@ if __name__ == "__main__":
 ['evinci microreactor', 'product spotlights'],
 ['product spotlights', 'westinghouseiq'],
 ['ap1000 pwr', 'product spotlights'],
+['is more than', '30000'],
     ]
     import numpy as np
     sp = np.array(sample_pairs, dtype=object)
     sample_pairs = np.unique(sp)
     # -------- Zero-shot backend --------
     print("\n=== Zero-shot (MoritzLaurer DeBERTa-v3) ===")
-    labels_zs, scores_zs = classify_node_isSentence(sample_pairs.tolist())
-    for (pair, lab, sc_p) in zip(sample_pairs, labels_zs, scores_zs):
-        print(lab, pair, ("not-ent:", sc_p[0].item(), "ent:", sc_p[1].item()))
+    isSent, scores_zs = classify_node_isSentence(sample_pairs.tolist())
+    labels_zs, scores_zs = classify_node_isCatgory(sample_pairs.tolist())
+    for (pair, lab, sc_p, t, s) in zip(sample_pairs, labels_zs, scores_zs[0], scores_zs[1], isSent):
+        if s == 1:
+            continue
+        print(lab, pair, (t, "not-ent:", sc_p[0].item(), "ent:", sc_p[1].item()))
 
     # Quick summary
     def hist(xs):

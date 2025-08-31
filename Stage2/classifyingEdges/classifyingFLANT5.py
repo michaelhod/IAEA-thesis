@@ -216,6 +216,30 @@ ANSWER:"""
         results.append(ans)
     return results
     
+def classify_node_isCategory(nodes):
+    """This classifies if a node is a category name, header or entry (and if it is likely to have a category name, header or entry to add context to it)"""
+    classify_category="""TASK:
+    Classify the QUERY's text into only one classification. Focus on sentence structure and ignore the meaning of the QUERY. Output one number only
+
+CLASSES:
+    0: The QUERY text is not CLASS 1;
+    1: The QUERY text is a proper noun, category value, a value or a category entry;
+                   
+QUERY: {txt}
+
+ANSWER:"""
+    zero_id = tokenizer("0", add_special_tokens=False).input_ids[0] #Token id for 0
+    one_id  = tokenizer("1", add_special_tokens=False).input_ids[0] #Token id for 1
+    output_tokens = torch.tensor([zero_id, one_id])
+
+    bias = _estimate_calibration_bias(classify_category, output_tokens)
+    presence = _classify_node(nodes, classify_category, output_tokens, calibration_bias=bias)
+    
+    results = []
+    for p in presence:
+        ans = 1 if p==1 else 0
+        results.append(ans)
+    return results
 
 if __name__ == "__main__":
     #sample_pairs = [["british columbia canada", "set in"], ["set in", "british columbia canada"], ["for sexuality and some language", "mpaa reasons"], ["mpaa reasons", "for sexuality and some language"], ["addict", "accident"], ["accident", "addict"], ["other related works", "is related to"], ["is related to", "other related works"], ["drugs", "accident"], ["accident", "drugs"], ["in a minor key", "moods"], ["moods", "in a minor key"], ["drugs", "addict"], ["addict", "drugs"], ["canada", "r"], ["r", "canada"], ["director", "atom egoyan"], ["atom egoyan", "director"], ["panavision", "corrections to this entry"], ["lawyer", "accident"], ["accident", "lawyer"], ["category", "feature"], ["feature", "category"], ["lawyer", "addict"], ["addict", "lawyer"], ["year", "1997"], ["1997", "year"], ["drama", "genres"], ["genres", "drama"], ["panavision", "cinematic process"], ["cinematic process", "panavision"], ["british columbia canada", "corrections to this entry"], ["lawyer", "drugs"], ["drugs", "lawyer"]]
@@ -349,11 +373,11 @@ if __name__ == "__main__":
     ]
     import numpy as np
     sample_pairs = np.unique(sample_pairs)
-    labels = classify_node_needsContext(sample_pairs)
+    labels = classify_node_isCategory(sample_pairs)
     ifnore = [1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3]
     for pair, label, flan in zip(sample_pairs, labels, ifnore):
-        if flan == 1:
-            continue
+        if flan != 1:
+            pass
         print(label, pair)
 
     last = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1]
