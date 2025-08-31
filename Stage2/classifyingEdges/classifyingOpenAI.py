@@ -26,7 +26,7 @@ SYSTEM_PROMPT_SENTENCE = """TASK:
 
 CLASSES:
     0: The text does not reference or allude to something unknown;
-    1: There are unknowns in what is being talked about;
+    1: There are key unknown subjects referenced;
 """
 
 SYSTEM_PROMPT = """You are a classifier. Given pairs of linked texts from an HTML document, decide their relationship for fact extraction.
@@ -413,6 +413,7 @@ if __name__ == "__main__":
     nano_4_labels = [1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1] # cost $ 0.000258
     mini_4_labels = [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010287999999999999
     nano_5_med = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0036251
+    nano_5_low = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0] # cost $ 0.00118055
 
     import sys
     sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
