@@ -171,7 +171,7 @@ def _classify_node(texts, prompt, outputOptions, device=None, calibration_bias=N
 def _estimate_calibration_bias(prompt, outputOptions, device=None):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    null_queries = ["", "N/A", "---", "???", "title", "keywords", "summary"]  # content-free / fragment-y
+    null_queries = ["", "N/A", "---", "???", "title", "keywords", "summary", "country language"]  # content-free / fragment-y
     prompts = [prompt.format(txt=q) for q in null_queries]
     batch = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
     logits_01 = score_label_next_token(batch["input_ids"], outputOptions)   # [K,2]
@@ -179,13 +179,13 @@ def _estimate_calibration_bias(prompt, outputOptions, device=None):
     bias = logits_01.mean(dim=0, keepdim=True)               # [1,2]
     return bias
 
-def classify_node_needsContext(nodes, batch_size=16, max_new_tokens=4, device=None):
+def classify_node_needsContext(nodes):
     classify_sentence="""TASK:
-    Classify the QUERY text into only one classification. Output one number only
+    Classify the QUERY's text into only one classification. Focus on sentence structure and ignore the meaning of the QUERY. Output one number only
 
 CLASSES:
-    0: The QUERY contains a sentence clause;
-    1: The QUERY does not contain a sentence clause;
+    0: The QUERY does not form a complete sentence;
+    1: The QUERY looks like a sentence (ignore punctuation);
                    
 QUERY: {txt}
 
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     ]
     import numpy as np
     sample_pairs = np.unique(sample_pairs)
-    labels = classify_node_needsContext(sample_pairs, batch_size=64)
+    labels = classify_node_needsContext(sample_pairs)
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
 
