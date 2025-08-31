@@ -4,7 +4,7 @@ from openai import OpenAI
 import tiktoken
 import os, re, sys
 
-OPENAI_MODEL = "gpt-4.1-mini"
+OPENAI_MODEL = "gpt-5-nano"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Context window controls (tokens). Set real numbers via env for your model.
@@ -12,8 +12,8 @@ CONTEXT_WINDOW_TOKENS = 400000
 SAFETY_MARGIN_TOKENS  = 1000    # buffer to avoid overflows
 
 # USD per 1K tokens (configure to your model’s pricing)
-PRICE_IN_PER_1M  = 0.4
-PRICE_OUT_PER_1M = 1.6
+PRICE_IN_PER_1M  = 0.05
+PRICE_OUT_PER_1M = 0.4
 
 # Per-text truncation for long inputs
 MAX_TOKENS_PER_TEXT = 128
@@ -25,7 +25,7 @@ SYSTEM_PROMPT_SENTENCE = """TASK:
     You are a fact-finding classifier. Read the QUERY text and assign it one classification. Output the classification number for each pair
 
 CLASSES:
-    0: The text does not reference something unknown;
+    0: The text does not reference or allude to something unknown;
     1: There are unknowns in what is being talked about;
 """
 
@@ -50,7 +50,7 @@ USER_HEADER = "\nClassify each, one by one\n\n"
 USER_FOOTER = "\n\nOutput {N} space separated integers ONLY:"
 
 # ---------- token helpers ----------
-ENC = tiktoken.get_encoding("cl100k_base")#"o200k_base")
+ENC = tiktoken.get_encoding("o200k_base")#"cl100k_base")
 
 def _count_tokens(s: str) -> int:
     return len(ENC.encode(s))
@@ -219,10 +219,10 @@ def classify_needsContext_openAI(texts, dry_run_confirm=True, batch_size: int | 
                 {"role": "system", "content": SYSTEM_PROMPT_SENTENCE},
                 {"role": "user", "content": user_prompt},
             ],
-            #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
-            #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            reasoning={"effort": "low"},   # "minimal"/"low"/"medium"/"high" depending on model
+            text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
             #max_output_tokens=(hi - lo) * 10,  # upper bound for safety
-            temperature=0.0,
+            #temperature=0.0,
             #presence_penalty=0.0 # Make it more negative to make the answer more on topic
         )
 
@@ -295,8 +295,8 @@ if __name__ == "__main__":
 ['enhance your training staffing and outsourcing needs with our training and resource solutions', 'westinghousenuclearning'],
 ['ap300 smr', 'the next generation small modular reactor for remote applications'],
 ['the next generation small modular reactor for remote applications', 'ap300 smr'],
-["the fact is it's safetruth is a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time", 'when it comes to creating a more sustainable planet the need for renewable energy cant replace the need for safe energy with nuclear power you get the best of both worlds'],
-['when it comes to creating a more sustainable planet the need for renewable energy cant replace the need for safe energy with nuclear power you get the best of both worlds', "the fact is it's safetruth is a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time"],
+["the fact is it's safetruth. a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time", 'when it comes to creating a more sustainable planet the need for renewable energy cant replace the need for safe energy with nuclear power you get the best of both worlds'],
+['when it comes to creating a more sustainable planet the need for renewable energy cant replace the need for safe energy with nuclear power you get the best of both worlds', "the fact is it's safetruth. a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time"],
 ["the world's first proven generation iii pressurized water reactor and passive safety plant available", 'evinci microreactor'],
 ['evinci microreactor', "the world's first proven generation iii pressurized water reactor and passive safety plant available"],
 ['solar wind and nuclear energy are essential to a carbonfree future but the sun doesnt always shine and the wind doesnt always blow nuclear power plants are almost always on delivering the highest availability energy source and operating at maximum capacity more than 90% of the time', 'shaping the future with reliable energy'],
@@ -309,8 +309,8 @@ if __name__ == "__main__":
 ['quality environment health safety', 'project management support'],
 ['engineering', 'corporate'],
 ['corporate', 'engineering'],
-['safety getting the facts right', "the fact is it's safetruth is a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time"],
-["the fact is it's safetruth is a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time", 'safety getting the facts right'],
+['safety getting the facts right', "the fact is it's safetruth. a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time"],
+["the fact is it's safetruth. a person working fulltime in a nuclear power plant receives less additional radiation in a year than a flight crew or a business traveler with 250 hours of flying time", 'safety getting the facts right'],
 ['westinghouse partners with richland county ems to host training video series', 'westinghouse partnered with the richland county ems to host a series of training videos at their facility the training videos filmed onsite at westinghouse in hopkins signals a collaboration that focuses on producing highquality instructional content aimed at improving skills and knowledge among emergency medical personnel'],
 ['westinghouse partnered with the richland county ems to host a series of training videos at their facility the training videos filmed onsite at westinghouse in hopkins signals a collaboration that focuses on producing highquality instructional content aimed at improving skills and knowledge among emergency medical personnel', 'westinghouse partners with richland county ems to host training video series'],
 ['carbonfree energy', 'nuclear energyprovides 55% of the uss and 14% of the worlds carbonfree energy'],
@@ -410,9 +410,9 @@ if __name__ == "__main__":
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
 
-    nano_labels = [1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1] # cost $ 0.000258
-    mini_labels = [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010287999999999999
-
+    nano_4_labels = [1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1] # cost $ 0.000258
+    mini_4_labels = [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0010287999999999999
+    nano_5_med = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0] # cost $ 0.0036251
 
     import sys
     sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
