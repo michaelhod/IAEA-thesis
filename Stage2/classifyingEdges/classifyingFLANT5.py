@@ -284,16 +284,15 @@ def overlap_ratio(src: str, out: str) -> float:
 def summarise_node(pairs, batch_size=64, sentencethreshold=0.75, contextthreshold=0.25, max_rounds=6, device=None):
     """Takes a list of edges. The first is the node to summarise, the second the context. Splits the summary into sentences"""
     prompt="""TASK:
-    Output the sentence provided. Do not remove important facts. 
-Use the CONTEXT to enrich the sentence.
-Use at least half the words in the CONTEXT.
-Use at least 90% of the words in the SENTENCE.
+    Combine the context into the sentence, where it best belongs.
+    If unsure, use the context as a name.
+    Do not remove important facts. Be specific. Be concise.
 
 CONTEXT: {ctx}
                    
 SENTENCE: {txt}
 
-SUMMARY:"""
+COMBINED:"""
     
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()
@@ -305,8 +304,7 @@ SUMMARY:"""
     # index items so we can return results in original order
     work = [{"idx": i, "txt": s, "ctx": c} for i, (s, c) in enumerate(pairs)]
     next_attempt = work[:]                 # initial queue
-    results = [None] * len(pairs)          # final outputs
-    last_try  = [None] * len(pairs)        # last outputs (if any fail after max_rounds)
+    first_try  = [None] * len(pairs)        # last outputs
 
     rounds = 0
     temp = 1e-9
@@ -324,32 +322,30 @@ SUMMARY:"""
 
             inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
             with torch.no_grad():
-                out_ids = model.generate(**inputs, max_new_tokens=64, do_sample=True, temperature=temp)
+                out_ids = model.generate(**inputs, num_beams=2, max_new_tokens=64, do_sample=True, temperature=temp, no_repeat_ngram_size=3)
             decoded = tokenizer.batch_decode(out_ids, skip_special_tokens=True)
 
             # check pass/fail for each item in the batch
             for item, gen_text in zip(batch, decoded):
                 gen_text = gen_text.strip()
-                last_try[item["idx"]] = gen_text
+                if rounds == 0:
+                    first_try[item["idx"]] = gen_text
+                
                 sentence_ov = overlap_ratio(item["txt"], gen_text)
                 context_ov = overlap_ratio(item["ctx"], gen_text)
                 if sentence_ov >= sentencethreshold and context_ov >= context_ov:
-                    results[item["idx"]] = gen_text   # accept
+                    first_try[item["idx"]] = gen_text #Overwrite better attempts
                 else:
-                    runagain.append(item)             # re-queue failure
+                    runagain.append(item)
 
         next_attempt = runagain
         rounds += 1
 
         # make retries a bit more exploratory each round:
         if next_attempt:
-            temp = min(0.7, temp + 0.15)
+            temp = min(0.7, temp + 0.1)
 
-    # any stubborn items -> keep their last attempt
-    for item in next_attempt:
-        results[item["idx"]] = last_try[item["idx"]]
-
-    return results
+    return first_try
 
 
 if __name__ == "__main__":
