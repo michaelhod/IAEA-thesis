@@ -19,13 +19,13 @@ PRICE_OUT_PER_1M = 1.6
 MAX_TOKENS_PER_TEXT = 128
 MAX_NEW_TOKENS_GUESS_PER_LABEL = 2
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key="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")#OPENAI_API_KEY)
 
 SYSTEM_PROMPT_PAIRWISE = """You are a classifier.
 Decide the relation between INPUT 1 and INPUT 2.
 
 CLASSES:
-    0 = Both belong in the same category (e.g., both are a feeling, both are dates).
+    0 = Both belong in the same category (e.g., both are a product, both are a feeling, both are dates).
     1 = Both belong in seperate categories"""
 
 SYSTEM_PROMPT_SENTENCE = """TASK:

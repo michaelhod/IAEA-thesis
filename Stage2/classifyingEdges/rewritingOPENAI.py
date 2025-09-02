@@ -21,10 +21,18 @@ MAX_NEW_TOKENS_GUESS_PER_LABEL = 64
 
 client = OpenAI(api_key="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")#OPENAI_API_KEY)
 
-SYSTEM_PROMPT = """Summarise the INPUT provided into facts. Do not remove important facts. Do not add facts.
+ADD_CONTEXT_PROMPT = """Summarise the INPUT provided into facts. Do not remove important facts. Do not add facts.
 If there is missing information within the INPUT (e.g. pronouns, alluding to something) use the CONTEXT to enrich it.
 Do not use the CONTEXT if the fact is complete.
 Do not ouput a fact directly from the CONTEXT. Output only the facts from the INPUT. Be concise.
+If there are no fact, output "NO FACTS"
+"""
+
+SUMMARISE_PROMPT = """Summarise the INPUT provided into a list of a maximum of {N} simple facts.
+Do not repeat similar facts.
+NEVER use pronouns (e.g., him, these, it).
+Explicitly state everything, even if it means repeating words.
+Be concise. Seperate the facts with \\n
 If there are no fact, output "NO FACTS"
 """
 
@@ -43,8 +51,8 @@ def _truncate_to_tokens(s: str, max_tokens: int) -> str:
         return s
     return ENC.decode(toks[:max_tokens]) + " …"
 
-def _estimate_cost(tokens_in: int, tokens_out: int) -> float:
-    return (tokens_in / 1000000.0) * PRICE_IN_PER_1M + (tokens_out / 1000000.0) * PRICE_OUT_PER_1M
+def _estimate_cost(tokens_in: int, tokens_out: int, price_in=PRICE_IN_PER_1M, price_out=PRICE_OUT_PER_1M) -> float:
+    return (tokens_in / 1000000.0) * price_in + (tokens_out / 1000000.0) * price_out
 
 # ---------- batching that maximizes the context window ----------
 def _create_entry_line(idx: int, left: str, right: str) -> str:
@@ -54,7 +62,7 @@ def _create_entry_line(idx: int, left: str, right: str) -> str:
 
 def _create_batches(pairs, max_batch_size=None):
     """Yields batches to maximally fills the context window."""
-    sys_tokens, header_tokens, footer_tokens = _count_tokens(SYSTEM_PROMPT), _count_tokens(USER_HEADER), _count_tokens(USER_FOOTER)
+    sys_tokens, header_tokens, footer_tokens = _count_tokens(ADD_CONTEXT_PROMPT), _count_tokens(USER_HEADER), _count_tokens(USER_FOOTER)
     max_batch_size = max_batch_size if max_batch_size else len(pairs)
 
     i = 0
@@ -119,7 +127,7 @@ def add_context(pairs, dry_run_confirm=True, max_batch_size: int | None = 1, ret
         resp = client.responses.create(
             model=OPENAI_MODEL,
             input=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": ADD_CONTEXT_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
             #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
@@ -137,6 +145,71 @@ def add_context(pairs, dry_run_confirm=True, max_batch_size: int | None = 1, ret
         actual_in_tokens = usage.input_tokens
         actual_total_tokens = usage.total_tokens
         batchCost =  _estimate_cost(actual_in_tokens, usage.output_tokens)
+        runningCostTotal += batchCost
+        print("Total_tokens=", actual_total_tokens, " {input_tokens=", actual_in_tokens, " reasoning_tokens=", reasoning_tokens, " output_tokens=", actual_out_tokens, "}")
+        print("Running Total cost: $", runningCostTotal, " This batch cost: $", batchCost)
+
+        results.append(text)
+        print("results so far: ", results)
+
+    return (results, runningCostTotal) if return_raw_response_and_cost else results
+
+def summairse(texts, dry_run_confirm=True, batch_size: int | None = 1, return_raw_response_and_cost=False):
+    """
+    pairs: list[[left, right]]
+    return: list[int] with values in {1,2,3}; printed as "1 2 3 ..."
+    """
+    results = [] 
+    
+    in_SYST  = _count_tokens(SUMMARISE_PROMPT+USER_HEADER+USER_FOOTER)
+    in_txts = _count_tokens("\n\n".join(texts))
+    total_out_tokens = _count_tokens("1 "*len(texts))
+    est_cost = _estimate_cost(in_txts+in_SYST*(len(texts)/batch_size), total_out_tokens)
+    if dry_run_confirm:
+        print(f"Expected total price: ${est_cost}")
+        ans = input("Type Yes to continue this batch (anything else aborts): ").strip()
+        if ans != "Yes":
+            print("Aborted by user.")
+            sys.exit(1)
+
+    runningCostTotal = 0
+
+    for batch_idx in range(0, len(texts), batch_size):
+        batch = texts[batch_idx:batch_idx+batch_size]
+
+        user_prompt = USER_HEADER + "INPUT: " +"\n\nINPUT: ".join(batch) + USER_FOOTER.format(N=(batch_size))
+        used_in_tokens = in_SYST + _count_tokens(user_prompt)
+        out_tokens_guess = _count_tokens("1 "*batch_size)
+
+        print(f"\nBatch {batch_idx}: ~input tokens={used_in_tokens:,}, ~output tokens={out_tokens_guess:,}, "
+              f"est. cost=${est_cost:.4f} total cost=${runningCostTotal:.4f} (IN=${PRICE_IN_PER_1M}/1M, OUT=${PRICE_OUT_PER_1M}/1M)")
+
+        def count_sents(text):
+            sents = re.split(r'(?<=[.!?])\s+', text.strip())
+            return len([s.strip() for s in sents if s.strip()])
+
+        # Call API (no JSON; tiny output)
+        resp = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {"role": "system", "content": SUMMARISE_PROMPT.format(N=count_sents(user_prompt)+1)},
+                {"role": "user", "content": user_prompt},
+            ],
+            #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
+            #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            max_output_tokens=int(len(user_prompt)/2),  # upper bound for safety
+            temperature=0.0,
+            truncation='auto',
+            #presence_penalty=0.0 # Make it more negative to make the answer more on topic
+        )
+
+        text = resp.output_text.strip()
+        usage = resp.usage
+        reasoning_tokens = usage.output_tokens_details.reasoning_tokens
+        actual_out_tokens = usage.output_tokens - reasoning_tokens
+        actual_in_tokens = usage.input_tokens
+        actual_total_tokens = usage.total_tokens
+        batchCost =  _estimate_cost(actual_in_tokens, usage.output_tokens, 0.4, 1.6)
         runningCostTotal += batchCost
         print("Total_tokens=", actual_total_tokens, " {input_tokens=", actual_in_tokens, " reasoning_tokens=", reasoning_tokens, " output_tokens=", actual_out_tokens, "}")
         print("Running Total cost: $", runningCostTotal, " This batch cost: $", batchCost)
@@ -169,17 +242,17 @@ if __name__ == "__main__":
 # ['westinghouseiq', 'enhance your training staffing and outsourcing needs with our training and resource solutions'],
 # ['when it comes to creating a more sustainable planet the need for renewable energy cant replace the need for safe energy with nuclear power you get the best of both worlds', 'safety getting the facts right'],
 # ['safety getting the facts right', 'when it comes to creating a more sustainable planet the need for renewable energy cant replace the need for safe energy with nuclear power you get the best of both worlds'],
-["BC Canada", "set in"],
-["set in", "BC Canada"],
-["Other related works", "is related to"],
-["director", "atom eygoran"],
-['ap1000 pwr', "the world's first proven generation iii pressurized water reactor and passive safety plant available"],
-["the world's first proven generation iii pressurized water reactor and passive safety plant available", 'ap1000 pwr'],
-['the ap300 smr is the next evolution of the licensed ap1000 technology', 'evinci microreactor'],
-['evinci microreactor', 'the ap300 smr is the next evolution of the licensed ap1000 technology'],
-['ap1000 pwr', 'the ap300 smr is the next evolution of the licensed ap1000 technology'],
-['the ap300 smr is the next evolution of the licensed ap1000 technology', 'ap1000 pwr'],
-# ['balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent', 'carbonfree energy'],
+# ["BC Canada", "set in"],
+# ["set in", "BC Canada"],
+# ["Other related works", "is related to"],
+# ["director", "atom eygoran"],
+# ['ap1000 pwr', "the world's first proven generation iii pressurized water reactor and passive safety plant available"],
+# ["the world's first proven generation iii pressurized water reactor and passive safety plant available", 'ap1000 pwr'],
+# ['the ap300 smr is the next evolution of the licensed ap1000 technology', 'evinci microreactor'],
+# ['evinci microreactor', 'the ap300 smr is the next evolution of the licensed ap1000 technology'],
+# ['ap1000 pwr', 'the ap300 smr is the next evolution of the licensed ap1000 technology'],
+# ['the ap300 smr is the next evolution of the licensed ap1000 technology', 'ap1000 pwr'],
+['balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent', 'carbonfree energy'],
 # ['carbonfree energy', 'balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent'],
 # ['ap1000 pwr', 'the next generation small modular reactor for remote applications'],
 # ['the next generation small modular reactor for remote applications', 'ap1000 pwr'],
@@ -290,7 +363,8 @@ if __name__ == "__main__":
 # ['product spotlights', 'westinghouseiq'],
 # ['ap1000 pwr', 'product spotlights'],
     ]
-    labels = add_context(sample_pairs, dry_run_confirm=True, max_batch_size=1)
+    sample_pairs = ['balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent']
+    labels = summairse(sample_pairs, dry_run_confirm=True, batch_size=1)
     print()
     for pair, label in zip(sample_pairs, labels):
         print(label, pair)
