@@ -5,7 +5,7 @@ os.makedirs(os.environ["TRANSFORMERS_CACHE"], exist_ok=True)
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-MODEL_NAME = "google/flan-t5-large"  # or "google/flan-t5-base" for more accuracy
+MODEL_NAME = "google/flan-t5-xl"  # "google/flan-t5-large" or "google/flan-t5-base" for more accuracy
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
@@ -244,12 +244,14 @@ ANSWER:"""
 def summarise_node(pairs, batch_size=16, device=None):
     """Takes a list of edges. The first is the node to summarise, the second the context. Splits the summary into sentences"""
     prompt="""TASK:
-    Include the CONTEXT to the SENTENCE, then summarise it.
-    The CONTEXT replaces unknowns within the SENTENCE. 
+    Output the sentence provided. Do not remove important facts. 
+Use the CONTEXT to enrich the sentence.
+Use least half the words in the CONTEXT.
+Use least 90% of the words in the SENTENCE.
 
-CONTEXT: {txt}
-
-SENTENCE: {ctx}
+CONTEXT: {ctx}
+                   
+SENTENCE: {txt}
 
 SUMMARY:"""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -261,7 +263,7 @@ SUMMARY:"""
 
         # For each summary node, split by ".", prompts are sentence by sentence. They take the context and the prev sentence
         prompts = []
-        for pair in batch:
+        for pair in pairs:
             sentences = pair[0].split(".")
             context = pair[1]
             for sentence in sentences:
@@ -269,7 +271,7 @@ SUMMARY:"""
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
-            outputs = model.generate(**inputs, num_beams=4, max_new_tokens=36, no_repeat_ngram_size=3, length_penalty=0.8, do_sample=False)
+            outputs = model.generate(**inputs, max_new_tokens=64, length_penalty=1.2, do_sample=False)
 
         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
