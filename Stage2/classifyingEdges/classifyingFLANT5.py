@@ -38,14 +38,14 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
     node_preds = []
     for i in range(0, len(texts), batch_size):
         batch_texts = texts[i:i+batch_size]
-        prompts = [f"""Decide if the text looks like a website button or navigation label.
+        prompts = [f"""Decide if the text looks like an website button or navigation label.
 Return 1 for button/navigation, or 0 otherwise. Output only a single digit.
 
 Examples of 1: "Read more", "Learn more", "Explore", "Get started", "Try free", "Watch video",
-"Sign in", "Sign up", "My account", "Download", "Contact", "Pricing", "Products", "Docs",
-"Blog", "Home", "About", "Privacy Policy", "Terms", "Fr/En", "Menu", "Next", "Previous", "Back".
+"Sign in", "Sign up", "My account", "Download", "Contact", "Home", "About", "Privacy Policy",
+"Terms", "Fr/En", "Menu", "Next", "Previous", "Back", "Dashboard", "Add to cart".
 
-Examples of 0: sentences or descriptive copy, names of people or products in context, long summaries.
+Examples of 0: descriptive copy, names of people or products in context, long summaries, and info labels such as "Best seller", "Made in USA" or "Free shipping on orders over $50"
 
 TEXT: {text}
 
@@ -241,6 +241,45 @@ ANSWER:"""
         results.append(ans)
     return results
 
+def summarise_node(pairs, batch_size=16, device=None):
+    """Takes a list of edges. The first is the node to summarise, the second the context. Splits the summary into sentences"""
+    prompt="""TASK:
+    Include the CONTEXT to the SENTENCE, then summarise it.
+    The CONTEXT replaces unknowns within the SENTENCE. 
+
+CONTEXT: {txt}
+
+SENTENCE: {ctx}
+
+SUMMARY:"""
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    results = []
+    for i in range(0, len(pairs), batch_size):
+        batch = pairs[i:i+batch_size]
+
+        # For each summary node, split by ".", prompts are sentence by sentence. They take the context and the prev sentence
+        prompts = []
+        for pair in batch:
+            sentences = pair[0].split(".")
+            context = pair[1]
+            for sentence in sentences:
+                prompts.append(prompt.format(txt=sentence, ctx=context))
+
+        inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
+        with torch.no_grad():
+            outputs = model.generate(**inputs, num_beams=4, max_new_tokens=36, no_repeat_ngram_size=3, length_penalty=0.8, do_sample=False)
+
+        decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        for text in decoded:
+            text = text.strip()
+            results.append(text)
+
+    return results
+
+
 if __name__ == "__main__":
     #sample_pairs = [["british columbia canada", "set in"], ["set in", "british columbia canada"], ["for sexuality and some language", "mpaa reasons"], ["mpaa reasons", "for sexuality and some language"], ["addict", "accident"], ["accident", "addict"], ["other related works", "is related to"], ["is related to", "other related works"], ["drugs", "accident"], ["accident", "drugs"], ["in a minor key", "moods"], ["moods", "in a minor key"], ["drugs", "addict"], ["addict", "drugs"], ["canada", "r"], ["r", "canada"], ["director", "atom egoyan"], ["atom egoyan", "director"], ["panavision", "corrections to this entry"], ["lawyer", "accident"], ["accident", "lawyer"], ["category", "feature"], ["feature", "category"], ["lawyer", "addict"], ["addict", "lawyer"], ["year", "1997"], ["1997", "year"], ["drama", "genres"], ["genres", "drama"], ["panavision", "cinematic process"], ["cinematic process", "panavision"], ["british columbia canada", "corrections to this entry"], ["lawyer", "drugs"], ["drugs", "lawyer"]]
     sample_pairs = [
@@ -372,14 +411,16 @@ if __name__ == "__main__":
 ['ap1000 pwr', 'product spotlights'],
     ]
     import numpy as np
-    sample_pairs = np.unique(sample_pairs)
-    labels = classify_node_isCategory(sample_pairs)
-    ifnore = [1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3]
-    for pair, label, flan in zip(sample_pairs, labels, ifnore):
-        if flan != 1:
-            pass
-        print(label, pair)
-
+    sample_pairs = [["The knight layed down his sword", "for a prince"],
+                    ["The strongest man in the kingdom", "a beggar's boy"],
+                    ["It was huge", "apple"],
+                    ["The king is not a fool at all", "The Queen"]]
+    txt = summarise_node(sample_pairs)
+    #ifnore = [1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3]
+    for idx, pair in enumerate(txt):#, ifnore):
+        print(sample_pairs[idx])
+        print(pair)
+        print()
     last = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1]
 
     best_attempt = [1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 0, 2, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 0, 1, 1, 2]
