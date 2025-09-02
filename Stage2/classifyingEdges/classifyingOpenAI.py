@@ -19,7 +19,14 @@ PRICE_OUT_PER_1M = 1.6
 MAX_TOKENS_PER_TEXT = 128
 MAX_NEW_TOKENS_GUESS_PER_LABEL = 2
 
-client = OpenAI(api_key="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")#OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+SYSTEM_PROMPT_PAIRWISE = """You are a classifier.
+Decide the relation between INPUT 1 and INPUT 2.
+
+CLASSES:
+    0 = Both belong in the same category (e.g., both are a feeling, both are dates).
+    1 = Both belong in seperate categories"""
 
 SYSTEM_PROMPT_SENTENCE = """TASK:
     You are a fact-finding classifier. Read the QUERY text and assign it one classification. Output the classification number for each pair
@@ -188,7 +195,7 @@ def classify_needsContext_openAI(texts, dry_run_confirm=True, batch_size: int | 
     """
     results = [] 
     
-    in_SYST  = _count_tokens(SYSTEM_PROMPT+USER_HEADER+USER_FOOTER)
+    in_SYST  = _count_tokens(SYSTEM_PROMPT_SENTENCE+USER_HEADER+USER_FOOTER)
     in_txts = _count_tokens("\n\n".join(texts))
     total_out_tokens = _count_tokens("1 "*len(texts))
     est_cost = _estimate_cost(in_txts+in_SYST*(len(texts)/batch_size), total_out_tokens)
@@ -239,10 +246,88 @@ def classify_needsContext_openAI(texts, dry_run_confirm=True, batch_size: int | 
 
         # Parse exactly (hi - lo) labels in {1,2,3}
         nums = re.findall(r"\b[0-1]\b", text)
-        if len(nums) != batch_size:
+        if len(nums) != len(batch):
             # soft fallback: split by whitespace, take first char if in 1-3
             tokens = text.split()
             soft = [t[0] for t in tokens if t and t[0] in "01"]
+            if len(soft) != batch_size:
+                raise ValueError(
+                    f"Expected {batch_size} labels for batch {batch_idx}, got {len(nums)} (soft {len(soft)}). "
+                    f"Raw output:\n{text}"
+                )
+            nums = soft
+
+        rawText += "[NEWBATCH]"+ text
+
+        results.extend(int(x) for x in nums)
+        print("output so far: ", rawText)
+        print("results so far: ", results)
+
+    return (results, runningCostTotal, rawText) if return_raw_response_and_cost else results
+
+def classify_pairwiseEdges_openAI(triplets, dry_run_confirm=True, batch_size: int | None = 1, return_raw_response_and_cost=False):
+    """
+    pairs: list[[left, right]]
+    return: list[int] with values in {1,2,3}; printed as "1 2 3 ..."
+    """
+    results = [] 
+    
+    in_SYST  = _count_tokens(SYSTEM_PROMPT_PAIRWISE+USER_HEADER+USER_FOOTER)
+    in_txts = _count_tokens("\n\n".join(["INPUT: ".join(triplet) for triplet in triplets]))
+    total_out_tokens = _count_tokens("1 "*len(triplets))
+    est_cost = _estimate_cost(in_txts+in_SYST*(len(triplets)/batch_size), total_out_tokens)
+    if dry_run_confirm:
+        print(f"Expected total price: ${est_cost}")
+        ans = input("Type Yes to continue this batch (anything else aborts): ").strip()
+        if ans != "Yes":
+            print("Aborted by user.")
+            sys.exit(1)
+
+    runningCostTotal = 0
+    rawText = ""
+
+    for batch_idx in range(0, len(triplets), batch_size):
+        batch = triplets[batch_idx:batch_idx+batch_size]
+
+        user_prompt = "".join([f"\n\n{idx})\nINPUT 1: " + triplet[1] + "\nINPUT 2: " + triplet[2] for idx, triplet in enumerate(batch)])
+        user_prompt = "\n\nCLASSIFY one by one:" + user_prompt + f"\n\nCLASSIFICATION (output {len(batch)} space separated numbers only):"
+        used_in_tokens = in_SYST + _count_tokens(user_prompt)
+        out_tokens_guess = _count_tokens("1 "*batch_size)
+
+        print(f"\nBatch {batch_idx} ~input tokens={used_in_tokens:,}, ~output tokens={out_tokens_guess:,}, "
+              f"est. cost=${est_cost:.4f} (IN=${PRICE_IN_PER_1M}/1M, OUT=${PRICE_OUT_PER_1M}/1M)")
+
+        # Call API (no JSON; tiny output)
+        resp = client.responses.create(
+            model=OPENAI_MODEL,
+            input=[
+                {"role": "system", "content": SYSTEM_PROMPT_PAIRWISE},
+                {"role": "user", "content": user_prompt},
+            ],
+            #reasoning={"effort": "high"},   # "minimal"/"low"/"medium"/"high" depending on model
+            #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            #max_output_tokens=(hi - lo) * 10,  # upper bound for safety
+            temperature=0.0,
+            #presence_penalty=0.0 # Make it more negative to make the answer more on topic
+        )
+
+        text = resp.output_text.strip()
+        usage = resp.usage
+        reasoning_tokens = usage.output_tokens_details.reasoning_tokens
+        actual_out_tokens = usage.output_tokens - reasoning_tokens
+        actual_in_tokens = usage.input_tokens
+        actual_total_tokens = usage.total_tokens
+        batchCost =  _estimate_cost(actual_in_tokens, usage.output_tokens)
+        runningCostTotal += batchCost
+        print("Total_tokens=", actual_total_tokens, " {input_tokens=", actual_in_tokens, " reasoning_tokens=", reasoning_tokens, " output_tokens=", actual_out_tokens, "}")
+        print("Running Total cost: $", runningCostTotal, " This batch cost: $", batchCost)
+
+        # Parse exactly (hi - lo) labels in {1,2,3}
+        nums = re.findall(r"\b[0-2]\b", text)
+        if len(nums) != len(batch):
+            # soft fallback: split by whitespace, take first char if in 1-3
+            tokens = text.split()
+            soft = [t[0] for t in tokens if t and t[0] in "012"]
             if len(soft) != batch_size:
                 raise ValueError(
                     f"Expected {batch_size} labels for batch {batch_idx}, got {len(nums)} (soft {len(soft)}). "
@@ -399,12 +484,21 @@ if __name__ == "__main__":
 ['ap1000 pwr', 'product spotlights'],
     ]
     import numpy as np
-    sample_pairs = np.unique(sample_pairs)
-    ifnore = np.array([1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3])
-    sample_pairs = sample_pairs[ifnore!=1]
-    sample_pairs = sample_pairs.tolist()
+    sample_pairs = [["The weather temperature", "cold", "hot"],
+                    ["The strongest man in the universe", "the king", "a dragon"],
+                    ["It is blue", "My car", "My house"],
+                    ["I love it", "Ice cream", "Sugar"],
+                    ['','news', 'westinghousenuclearning'],
+                    ['','united kingdom english', 'global directory x'],
+                    ['','shape your future', 'manufacturing operations maintenance'],
+                    ['','evinci microreactor', 'ap1000 pwr'],
+                    ['','product spotlights', 'westinghouseiq'],
+                    ['','ap1000 pwr', 'product spotlights'],]
+    # ifnore = np.array([1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3])
+    # sample_pairs = sample_pairs[ifnore!=1]
+    # sample_pairs = sample_pairs.tolist()
 
-    labels = classify_needsContext_openAI(sample_pairs, dry_run_confirm=True, batch_size=1)
+    labels = classify_pairwiseEdges_openAI(sample_pairs, dry_run_confirm=True, batch_size=4)
     print("\nFinal labels:")
     print(" ".join(str(x) for x in labels))
     for pair, label in zip(sample_pairs, labels):

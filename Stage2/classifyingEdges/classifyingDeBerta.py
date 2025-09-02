@@ -2,7 +2,9 @@ import os
 os.environ.setdefault("HF_HOME", "/data/mjh24/hf")
 os.environ.setdefault("TRANSFORMERS_CACHE", "/data/mjh24/hf/transformers")
 os.makedirs(os.environ["TRANSFORMERS_CACHE"], exist_ok=True)
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple
+import numpy as np
+
 # import torch
 # from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
@@ -204,7 +206,7 @@ def _estimate_calibration_bias_for_hypothesis(hypothesis, device=None):
 # Public API mirroring yours
 # -------------------------
 
-def classify_node_isSentence(nodes):
+def classify_node_isSentence(nodes, batch_size=64):
     """
     Two-pass test into DeBERTa NLI:
     - 'presence' pass: does the text look like a complete sentence? (1 if yes)
@@ -214,8 +216,11 @@ def classify_node_isSentence(nodes):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # First pass: presence (complete sentence? -> 1)
-    presence, probs_p = _classify_with_hypothesis(nodes, hypothesis_presence, device=device)
-
+    presence, probs_p = [], []
+    for start in range(0, len(nodes), batch_size):
+        prescence_temp, probs_temp = _classify_with_hypothesis(nodes[start:start+batch_size], hypothesis_presence, device=device)
+        presence.extend(prescence_temp),
+        probs_p.extend(probs_temp)
     return presence, probs_p
 
 def classify_node_isCatgory(nodes, confidenceFactor=8/3, confidenceThreshold=0.8):
@@ -227,16 +232,17 @@ def classify_node_isCatgory(nodes, confidenceFactor=8/3, confidenceThreshold=0.8
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Hypotheses used for NLI (premise = input text)
-    hypothesis_start = "This text is "
-    classes = ["only a proper noun", 
-                "only an attribute",
-                "only a language",
-                "briefly answering the question: Why?",
-                "a short modifier or add-on phrase that attaches to something else",
-                "a number or amount",
-                "a comparison phrase",
-                "only a category value", 
-                "only the name of a category"]
+    hypothesis_start = "This text "
+    classes = ["is a person, place, or thing",
+                "is only a date",
+                "is only an attribute",
+                "is only a language",
+                "is briefly answering the question: Why?",
+                "is a short modifier or add-on phrase that attaches to something else",
+                "is a number or amount",
+                "is a comparison phrase",
+                "is only a category value", 
+                "is only the name of a category"]
 
     cur_probs = np.array([[0.0,0.0]]*len(nodes)) #check dimensions of this one
     best_confidence = np.array([-np.inf]*len(nodes))
@@ -417,7 +423,8 @@ if __name__ == "__main__":
 ['ap1000 pwr', 'product spotlights'],
 ['is more than', '30000'],
     ]
-    import numpy as np
+    sample_pairs = ["About Us", "Contact", "Employment", "Product Submissions", "Advertising", "Terms of Service", "Copyright Policy", "Coming Soon", "In Theaters", "Essays", "Glossary", "New Releases", "Quick Browse", "AllMovie Blog", "In the Spotlight", "Ennio de Concini 1923", "Douglas Fairbanks Jr 1909", "Donald Byrd 1932", "John Cassavetes 1929", "Overview", "Review", "Cast", "Awards", "The Sweet Hereafter", "Send to Friend", "View DVD Releases", "Similar Works", "In the Bedroom 2001 Todd Field", "The Pledge 2001 Sean Penn", "Blue 1993 Krzysztof Kieslowski", "The Ice Storm 1997 Ang Lee", "Eureka 2000 Shinji Aoyama", "Other Related Works", "Is related to", "The War Zone 1999 Tim Roth", "by Jason Ankeny", "Year", "Run Time", "1997", "110 min", "Work Rating", "Attributes", "Countries", "MPAA Rating", "R", "Category", "Color Type", "Feature", "Color", "Director", "Atom Egoyan", "Genres", "Types", "Flags", "Keywords", "Themes", "Tones", "Moods", "Cinematic Process", "Set In", "MPAA Reasons", "Produced by", "AMG Work ID", "Corrections to this Entry", "V 155010", "High Artistic Quality", "High Production Values", "Canada", "Drama", "Ensemble Film", "Disaster Film", "Brief Nudity", "Not For Children", "Adult Situations", "Sexual Situations", "accident", "addict", "drugs", "lawyer", "disaster", "child", "drowning", "lawsuit", "scandal", "rampage", "schoolbus", "Death of a Child", "Redemption", "Infidelity", "Enigmatic", "Elegiac", "Lyrical", "Bleak", "Wintry", "Meditative", "In a Minor Key", "Panavision", "British Columbia Canada", "for sexuality and some language", "Alliance Atlantis Communications", "Ego Film Arts", "Fine Line Features"]
+
     sp = np.array(sample_pairs, dtype=object)
     sample_pairs = np.unique(sp)
     # -------- Zero-shot backend --------
