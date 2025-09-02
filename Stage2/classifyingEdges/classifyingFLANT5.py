@@ -5,7 +5,7 @@ os.makedirs(os.environ["TRANSFORMERS_CACHE"], exist_ok=True)
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-MODEL_NAME = "google/flan-t5-xl"  # "google/flan-t5-large" or "google/flan-t5-base" for more accuracy
+MODEL_NAME = "google/flan-t5-large"  # "google/flan-t5-large" or "google/flan-t5-base" for more accuracy
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
@@ -241,19 +241,7 @@ ANSWER:"""
         results.append(ans)
     return results
 
-def summarise_node(pairs, batch_size=16, device=None):
-    """Takes a list of edges. The first is the node to summarise, the second the context. Splits the summary into sentences"""
-    prompt="""TASK:
-    Output the sentence provided. Do not remove important facts. 
-Use the CONTEXT to enrich the sentence.
-Use least half the words in the CONTEXT.
-Use least 90% of the words in the SENTENCE.
 
-CONTEXT: {ctx}
-                   
-SENTENCE: {txt}
-
-SUMMARY:"""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -271,13 +259,95 @@ SUMMARY:"""
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=64, length_penalty=1.2, do_sample=False)
+            outputs = model.generate(**inputs, max_new_tokens=64, do_sample=True, temperature=0, top_p=0.9, no_repeat_ngram_size=3)
 
         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
         for text in decoded:
             text = text.strip()
             results.append(text)
+
+    return results
+
+
+import re
+import torch
+
+# --- overlap util (your criterion) ---
+def overlap_ratio(src: str, out: str) -> float:
+    """Fraction of source words that appear in output (case-insensitive, punctuation stripped)."""
+    to_words = lambda s: re.findall(r"\w+", s.lower())
+    src_words = to_words(src)
+    out_words = set(to_words(out))
+    return 0.0 if not src_words else sum(1 for w in src_words if w in out_words) / len(src_words)
+
+def summarise_node(pairs, batch_size=64, sentencethreshold=0.75, contextthreshold=0.25, max_rounds=6, device=None):
+    """Takes a list of edges. The first is the node to summarise, the second the context. Splits the summary into sentences"""
+    prompt="""TASK:
+    Output the sentence provided. Do not remove important facts. 
+Use the CONTEXT to enrich the sentence.
+Use at least half the words in the CONTEXT.
+Use at least 90% of the words in the SENTENCE.
+
+CONTEXT: {ctx}
+                   
+SENTENCE: {txt}
+
+SUMMARY:"""
+    
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device).eval()
+
+    def split_sents(text):
+        sents = re.split(r'(?<=[.!?])\s+', text.strip())
+        return [s.strip() for s in sents if s.strip()]
+
+    # index items so we can return results in original order
+    work = [{"idx": i, "txt": s, "ctx": c} for i, (s, c) in enumerate(pairs)]
+    next_attempt = work[:]                 # initial queue
+    results = [None] * len(pairs)          # final outputs
+    last_try  = [None] * len(pairs)        # last outputs (if any fail after max_rounds)
+
+    rounds = 0
+    temp = 1e-9
+    while next_attempt and rounds < max_rounds:
+        runagain = []
+        # process in batches
+        for b in range(0, len(next_attempt), batch_size):
+            
+            #build prompts by splitting up the sentences
+            batch = next_attempt[b:b+batch_size]
+            prompts = [prompt.format(ctx=item["ctx"], txt=item["txt"]) for item in batch]
+            # for item in batch:
+            #     for sents in split_sents(item["txt"]):
+            #         prompts.append(prompt.format(ctx=item["ctx"], txt=sents))
+
+            inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
+            with torch.no_grad():
+                out_ids = model.generate(**inputs, max_new_tokens=64, do_sample=True, temperature=temp)
+            decoded = tokenizer.batch_decode(out_ids, skip_special_tokens=True)
+
+            # check pass/fail for each item in the batch
+            for item, gen_text in zip(batch, decoded):
+                gen_text = gen_text.strip()
+                last_try[item["idx"]] = gen_text
+                sentence_ov = overlap_ratio(item["txt"], gen_text)
+                context_ov = overlap_ratio(item["ctx"], gen_text)
+                if sentence_ov >= sentencethreshold and context_ov >= context_ov:
+                    results[item["idx"]] = gen_text   # accept
+                else:
+                    runagain.append(item)             # re-queue failure
+
+        next_attempt = runagain
+        rounds += 1
+
+        # make retries a bit more exploratory each round:
+        if next_attempt:
+            temp = min(0.7, temp + 0.15)
+
+    # any stubborn items -> keep their last attempt
+    for item in next_attempt:
+        results[item["idx"]] = last_try[item["idx"]]
 
     return results
 
@@ -413,10 +483,10 @@ if __name__ == "__main__":
 ['ap1000 pwr', 'product spotlights'],
     ]
     import numpy as np
-    sample_pairs = [["The knight layed down his sword", "for a prince"],
-                    ["The strongest man in the kingdom", "a beggar's boy"],
-                    ["It was huge", "apple"],
-                    ["The king is not a fool at all", "The Queen"]]
+    # sample_pairs = [["The knight layed down his sword", "for a prince"],
+    #                 ["The strongest man in the kingdom", "a beggar's boy"],
+    #                 ["It was huge", "apple"],
+    #                 ["The king is not a fool at all", "The Queen"]]
     txt = summarise_node(sample_pairs)
     #ifnore = [1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 3, 1, 3, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 1, 3, 3, 3, 3, 3, 3, 1, 1, 3, 3, 2, 3, 1, 1, 1, 3]
     for idx, pair in enumerate(txt):#, ifnore):
