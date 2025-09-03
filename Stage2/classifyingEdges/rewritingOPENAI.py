@@ -29,9 +29,10 @@ If there are no fact, output "NO FACTS"
 """
 
 SUMMARISE_PROMPT = """A fact is a declarative, verifiable claim with a concrete subject and predicate that can be true or false.
-Summarise the INPUT provided into a list of up to {N} simple facts.
-If the INPUT contains no facts, output "NO FACTS".
-NEVER use pronouns (e.g., him, these, it).
+Summarise the INPUT provided into a minimal list of self-contained facts.
+If the INPUT contains no facts, output "NO FACTS". Ignore sentences that contain no facts.
+Within each fact, NEVER use pronouns (e.g., him, these, it).
+The previous fact must not imply something in the next fact.
 Explicitly state everything, even if it means repeating words.
 Be concise. Seperate the facts with "\\n".
 """
@@ -188,11 +189,17 @@ def summairse(texts, dry_run_confirm=True, batch_size: int | None = 1, return_ra
             sents = re.split(r'(?<=[.!?])\s+', text.strip())
             return len([s.strip() for s in sents if s.strip()])
 
+        modelType = "gpt-4.1-nano"
+        cost_per_M = (0.1, 0.4)
+        if count_sents(user_prompt) > 3:
+            modelType = "gpt-4.1-mini"
+            cost_per_M = (0.4, 1.6)
+        print(modelType)
         # Call API (no JSON; tiny output)
         resp = client.responses.create(
-            model="gpt-4.1-mini",
+            model=modelType,
             input=[
-                {"role": "system", "content": SUMMARISE_PROMPT.format(N=count_sents(user_prompt)+1)},
+                {"role": "system", "content": SUMMARISE_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
             #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
@@ -209,7 +216,7 @@ def summairse(texts, dry_run_confirm=True, batch_size: int | None = 1, return_ra
         actual_out_tokens = usage.output_tokens - reasoning_tokens
         actual_in_tokens = usage.input_tokens
         actual_total_tokens = usage.total_tokens
-        batchCost =  _estimate_cost(actual_in_tokens, usage.output_tokens, 0.4, 1.6)
+        batchCost =  _estimate_cost(actual_in_tokens, usage.output_tokens, cost_per_M[0], cost_per_M[1])
         runningCostTotal += batchCost
         print("Total_tokens=", actual_total_tokens, " {input_tokens=", actual_in_tokens, " reasoning_tokens=", reasoning_tokens, " output_tokens=", actual_out_tokens, "}")
         print("Running Total cost: $", runningCostTotal, " This batch cost: $", batchCost)
@@ -363,8 +370,11 @@ if __name__ == "__main__":
 # ['product spotlights', 'westinghouseiq'],
 # ['ap1000 pwr', 'product spotlights'],
     ]
-    sample_pairs = ['balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent',
-                    "Shaping Tomorrow's EnergyThrough Advanced Nuclear Technology"]
+    sample_pairs = ["balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate, over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent", 
+                    "Shaping Tomorrow's EnergyThrough Advanced Nuclear Technology", 
+                    "Westinghouse Expands Supply Chain with Six UK Companies",
+                    "Fermi America Partners with Westinghouse to Support Licensing for Four AP1000 Units",
+                    "Atom Egoyan's haunting adaptation of the Russell Banks novel The Sweet Hereafter was the Canadian filmmaker's most successful film to date taking home a Special Grand Jury Prize at the 1997 Cannes Film Festival and scoring a pair of Academy Award nominations including Best Director. Restructured to fit Egoyan's signature mosaic narrative style the story concerns the cultural aftershocks which tear apart a small British Columbia town in the wake of a schoolbus accident which leaves a number of local children dead. Ian Holm stars as Mitchell Stephens a bigcity lawyer who arrives in the interest of uniting the survivors to initiate a lawsuit his maneuvering only drives the community further apart reopening old wounds and jeopardizing any hopes of emotional recovery. Like so many of Egoyan's features The Sweet Hereafter is a serious and painfully honest exploration of family grief no character is immune from the sense of utter devastation which grips the film not even the attorney whose interests are in part motivated by his own remorse over the fate of his daughter an HIVpositive drug addict."]
     labels = summairse(sample_pairs, dry_run_confirm=False, batch_size=1)
     print()
     for pair, label in zip(sample_pairs, labels):

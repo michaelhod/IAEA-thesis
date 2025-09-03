@@ -215,7 +215,6 @@ def classify_node_isSentence(nodes, batch_size=64):
     hypothesis_presence = "This text contains at least a sentence (ignoring punctuation)"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # First pass: presence (complete sentence? -> 1)
     presence, probs_p = [], []
     for start in range(0, len(nodes), batch_size):
         prescence_temp, probs_temp = _classify_with_hypothesis(nodes[start:start+batch_size], hypothesis_presence, device=device)

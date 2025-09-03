@@ -13,3 +13,7 @@ beautifulsoup4
 transformers
 openai
 tiktoken
+python-louvain
+python-igraph
+leidenalg
+cdlib 
