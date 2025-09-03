@@ -5,7 +5,7 @@ os.makedirs(os.environ["TRANSFORMERS_CACHE"], exist_ok=True)
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
-MODEL_NAME = "google/flan-t5-large"  # "google/flan-t5-large" or "google/flan-t5-base" for more accuracy
+MODEL_NAME = "google/flan-t5-large"  # "google/flan-t5-xl" or "google/flan-t5-base" for more accuracy
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)

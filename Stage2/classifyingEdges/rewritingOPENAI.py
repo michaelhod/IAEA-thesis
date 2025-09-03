@@ -28,12 +28,12 @@ Do not ouput a fact directly from the CONTEXT. Output only the facts from the IN
 If there are no fact, output "NO FACTS"
 """
 
-SUMMARISE_PROMPT = """Summarise the INPUT provided into a list of a maximum of {N} simple facts.
-Do not repeat similar facts.
+SUMMARISE_PROMPT = """A fact is a declarative, verifiable claim with a concrete subject and predicate that can be true or false.
+Summarise the INPUT provided into a list of up to {N} simple facts.
+If the INPUT contains no facts, output "NO FACTS".
 NEVER use pronouns (e.g., him, these, it).
 Explicitly state everything, even if it means repeating words.
-Be concise. Seperate the facts with \\n
-If there are no fact, output "NO FACTS"
+Be concise. Seperate the facts with "\\n".
 """
 
 USER_HEADER = "\n\n"
@@ -363,8 +363,10 @@ if __name__ == "__main__":
 # ['product spotlights', 'westinghouseiq'],
 # ['ap1000 pwr', 'product spotlights'],
     ]
-    sample_pairs = ['balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent']
-    labels = summairse(sample_pairs, dry_run_confirm=True, batch_size=1)
+    sample_pairs = ['balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent',
+                    "Shaping Tomorrow's EnergyThrough Advanced Nuclear Technology"]
+    labels = summairse(sample_pairs, dry_run_confirm=False, batch_size=1)
     print()
     for pair, label in zip(sample_pairs, labels):
-        print(label, pair)
+        print("\t",pair)
+        print(label)
