@@ -37,6 +37,28 @@ Explicitly state everything, even if it means repeating words.
 Be concise. Seperate the facts with "\\n".
 """
 
+CLUSTER_PROMPT = """The input entries contain category headers and category values.
+Group the entries into categories.
+Treat the first entry in each group as the category header.
+Each category should be on its own line.
+Start the line with the header.
+If the category has values, separate them from the header with " | ".
+If multiple values belong to a category, separate them with " | ".
+If a category has no values, print only the header.
+Use each entry exactly once.
+Do not add labels, quotes, or text that is not in the entries.
+"""
+
+# CLUSTER_PROMPT = """The input entries contain category headers and category values.
+# Format the output as follows:
+#     Each category should be on its own line.
+#     Start each line with the category header.
+#     Separate the header and its values with " | ".
+#     Separate multiple values in a category with " | ".
+#     If an entry has no category, output the entry on its own line.
+#     Only output the entries provided.
+# """
+
 USER_HEADER = "\n\n"
 USER_FOOTER = "\n\nSummary:"
 
@@ -226,6 +248,66 @@ def summairse(texts, dry_run_confirm=True, batch_size: int | None = 1, return_ra
 
     return (results, runningCostTotal) if return_raw_response_and_cost else results
 
+def summairse_clusters(wordclusters, dry_run_confirm=True, batch_size: int | None = 1, return_raw_response_and_cost=False):
+    """
+    wordclusters: list[[words, ...], [otherwords, ...]]
+    return: list[int] with values in {1,2,3}; printed as "1 2 3 ..."
+    """
+    results = [] 
+    
+    in_SYST  = _count_tokens(CLUSTER_PROMPT+USER_HEADER+USER_FOOTER)
+    in_txts = _count_tokens("\n\n".join(["".join(words) for words in wordclusters]))
+    total_out_tokens = _count_tokens("\n\n".join(["".join(words) for words in wordclusters]))
+    est_cost = _estimate_cost(in_txts+in_SYST*(len(wordclusters)/batch_size), total_out_tokens)
+    if dry_run_confirm:
+        print(f"Expected total price: ${est_cost}")
+        ans = input(f"Type Yes to continue this batch (est cost ${est_cost}): ").strip()
+        if ans != "Yes":
+            print("Aborted by user.")
+            sys.exit(1)
+
+    runningCostTotal = 0
+
+    for batch_idx in range(0, len(wordclusters), batch_size):
+        batch = wordclusters[batch_idx:batch_idx+batch_size]
+
+        user_prompt = USER_HEADER + "INPUT ENTRIES: " +"\n\nINPUT ENTRIES: ".join(["\n\t\""+"\"\n\t\"".join(words)+"\"" for words in batch]) + "\n\nOutput:"
+        used_in_tokens = in_SYST + _count_tokens(user_prompt)
+
+        print(f"\nBatch {batch_idx}: ~input tokens={used_in_tokens:,}, "
+              f"est. cost=${est_cost:.4f} total cost=${runningCostTotal:.4f} (IN=${PRICE_IN_PER_1M}/1M, OUT=${PRICE_OUT_PER_1M}/1M)")
+
+        # Call API (no JSON; tiny output)
+        resp = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {"role": "system", "content": CLUSTER_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
+            #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
+            max_output_tokens=int(len(user_prompt)/2),  # upper bound for safety
+            temperature=0.0,
+            truncation='auto',
+            #presence_penalty=0.0 # Make it more negative to make the answer more on topic
+        )
+
+        text = resp.output_text.strip()
+        usage = resp.usage
+        reasoning_tokens = usage.output_tokens_details.reasoning_tokens
+        actual_out_tokens = usage.output_tokens - reasoning_tokens
+        actual_in_tokens = usage.input_tokens
+        actual_total_tokens = usage.total_tokens
+        batchCost =  _estimate_cost(actual_in_tokens, usage.output_tokens, 0.4, 1.6)
+        runningCostTotal += batchCost
+        print("Total_tokens=", actual_total_tokens, " {input_tokens=", actual_in_tokens, " reasoning_tokens=", reasoning_tokens, " output_tokens=", actual_out_tokens, "}")
+        print("Running Total cost: $", runningCostTotal, " This batch cost: $", batchCost)
+
+        results.append(text)
+        print("results so far: ", results)
+
+    return (results, runningCostTotal) if return_raw_response_and_cost else results
+
 if __name__ == "__main__":
     # Example usage
     # sample_pairs = [
@@ -370,13 +452,50 @@ if __name__ == "__main__":
 # ['product spotlights', 'westinghouseiq'],
 # ['ap1000 pwr', 'product spotlights'],
     ]
-    sample_pairs = ["balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate, over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent", 
-                    "Shaping Tomorrow's EnergyThrough Advanced Nuclear Technology", 
-                    "Westinghouse Expands Supply Chain with Six UK Companies",
-                    "Fermi America Partners with Westinghouse to Support Licensing for Four AP1000 Units",
-                    "Atom Egoyan's haunting adaptation of the Russell Banks novel The Sweet Hereafter was the Canadian filmmaker's most successful film to date taking home a Special Grand Jury Prize at the 1997 Cannes Film Festival and scoring a pair of Academy Award nominations including Best Director. Restructured to fit Egoyan's signature mosaic narrative style the story concerns the cultural aftershocks which tear apart a small British Columbia town in the wake of a schoolbus accident which leaves a number of local children dead. Ian Holm stars as Mitchell Stephens a bigcity lawyer who arrives in the interest of uniting the survivors to initiate a lawsuit his maneuvering only drives the community further apart reopening old wounds and jeopardizing any hopes of emotional recovery. Like so many of Egoyan's features The Sweet Hereafter is a serious and painfully honest exploration of family grief no character is immune from the sense of utter devastation which grips the film not even the attorney whose interests are in part motivated by his own remorse over the fate of his daughter an HIVpositive drug addict."]
-    labels = summairse(sample_pairs, dry_run_confirm=False, batch_size=1)
-    print()
+    # sample_pairs = ["balancing wind solar and nuclear power will help achieve a carbonfree future and positively impact our changing climate, over the past 50 years globally nuclear power has avoided nearly two years of the worlds energyrelated co2 emissions imagine how much more carbon pollution we can prevent", 
+    #                 "Shaping Tomorrow's EnergyThrough Advanced Nuclear Technology", 
+    #                 "Westinghouse Expands Supply Chain with Six UK Companies",
+    #                 "Fermi America Partners with Westinghouse to Support Licensing for Four AP1000 Units",
+    #                 "Atom Egoyan's haunting adaptation of the Russell Banks novel The Sweet Hereafter was the Canadian filmmaker's most successful film to date taking home a Special Grand Jury Prize at the 1997 Cannes Film Festival and scoring a pair of Academy Award nominations including Best Director. Restructured to fit Egoyan's signature mosaic narrative style the story concerns the cultural aftershocks which tear apart a small British Columbia town in the wake of a schoolbus accident which leaves a number of local children dead. Ian Holm stars as Mitchell Stephens a bigcity lawyer who arrives in the interest of uniting the survivors to initiate a lawsuit his maneuvering only drives the community further apart reopening old wounds and jeopardizing any hopes of emotional recovery. Like so many of Egoyan's features The Sweet Hereafter is a serious and painfully honest exploration of family grief no character is immune from the sense of utter devastation which grips the film not even the attorney whose interests are in part motivated by his own remorse over the fate of his daughter an HIVpositive drug addict."]
+    sample_pairs = [["accident",
+    "addict",
+    "drugs",
+    "lawyer",
+    "disaster",
+    "child",
+    "drowning",
+    "lawsuit",
+    "scandal",
+    "rampage",
+    "schoolbus",
+    "Keywords"],
+    ["Canada",
+    "R",
+    "Director",
+    "Atom Egoyan",
+    "Drama",
+    "Genres",
+    "Countries",
+    "MPAA Rating",
+    "Work Rating",
+    "The Sweet Hereafter"],
+    ["British Columbia Canada",
+"Set In",
+"for sexuality and some language",
+"MPAA Reasons",
+"In a Minor Key",
+"Moods",
+"Panavision",
+"Cinematic Process",
+"Alliance Atlantis Communications",
+"Ego Film Arts",
+"Fine Line Features",
+"Corrections to this Entry",
+"AMG Work ID",
+"Produced by",
+"V 155010"]]
+    sample_pairs = [entry[::-1] for entry in sample_pairs]
+    labels = summairse_clusters(sample_pairs, dry_run_confirm=False, batch_size=1)
     for pair, label in zip(sample_pairs, labels):
-        print("\t",pair)
+        print()
         print(label)
