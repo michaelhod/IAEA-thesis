@@ -22,6 +22,7 @@ MAX_NEW_TOKENS_GUESS_PER_LABEL = 64
 client = OpenAI(api_key="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")#OPENAI_API_KEY)
 
 ADD_CONTEXT_PROMPT = """Summarise the INPUT provided into facts. Do not remove important facts. Do not add facts.
+If the CONTEXT can make a subject or premise within the INPUT more specific, replace it.
 If there is missing information within the INPUT (e.g. pronouns, alluding to something) use the CONTEXT to enrich it.
 Do not use the CONTEXT if the fact is complete.
 Do not ouput a fact directly from the CONTEXT. Output only the facts from the INPUT. Be concise.
@@ -155,7 +156,7 @@ def add_context(pairs, dry_run_confirm=True, max_batch_size: int | None = 1, ret
             ],
             #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
             #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
-            max_output_tokens=int(len(user_prompt)/2),  # upper bound for safety
+            max_output_tokens=max(int(len(user_prompt)/2),16),  # upper bound for safety
             temperature=0.0,
             truncation='auto',
             #presence_penalty=0.0 # Make it more negative to make the answer more on topic
@@ -226,7 +227,7 @@ def summairse(texts, dry_run_confirm=True, batch_size: int | None = 1, return_ra
             ],
             #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
             #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
-            max_output_tokens=int(len(user_prompt)/2),  # upper bound for safety
+            max_output_tokens=max(int(len(user_prompt)/2),16),  # upper bound for safety
             temperature=0.0,
             truncation='auto',
             #presence_penalty=0.0 # Make it more negative to make the answer more on topic
@@ -286,7 +287,7 @@ def summairse_clusters(wordclusters, dry_run_confirm=True, batch_size: int | Non
             ],
             #reasoning={"effort": "medium"},   # "minimal"/"low"/"medium"/"high" depending on model
             #text={"verbosity": "low"},         # "low" | "medium" | "high" (GPT-5)
-            max_output_tokens=int(len(user_prompt)/2),  # upper bound for safety
+            max_output_tokens=max(int(len(user_prompt)/2),16),  # upper bound for safety
             temperature=0.0,
             truncation='auto',
             #presence_penalty=0.0 # Make it more negative to make the answer more on topic
@@ -495,7 +496,8 @@ if __name__ == "__main__":
 "Produced by",
 "V 155010"]]
     sample_pairs = [entry[::-1] for entry in sample_pairs]
-    labels = summairse_clusters(sample_pairs, dry_run_confirm=False, batch_size=1)
+    sample_pairs = [["Adam Forshaw's immediate future on the pitch is uncertain as he recovers from surgery but the midfielder's stay at the club going forward is also reportedly in doubt.",'Leeds team news']]
+    labels = add_context(sample_pairs, dry_run_confirm=False, max_batch_size=1)
     for pair, label in zip(sample_pairs, labels):
         print()
         print(label)
