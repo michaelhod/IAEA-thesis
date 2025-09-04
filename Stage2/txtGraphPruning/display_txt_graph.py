@@ -12,6 +12,33 @@ def _truncate(text: str, head: int = 10, tail: int = 10) -> str:
         return s
     return f"{s[:head]}...{s[-tail:]}"
 
+import math
+
+def _spring_separate_components(G, *, seed=42, k=None, weight="prob", spacing=4.0, directed=True):
+    # Components
+    comps = list(nx.weakly_connected_components(G) if directed else nx.connected_components(G))
+    cols = math.ceil(math.sqrt(len(comps)))  # grid width
+    pos = {}
+
+    for i, comp_nodes in enumerate(comps):
+        sub = G.subgraph(comp_nodes)
+        # pick a k appropriate to the subgraph size if not provided
+        k_sub = k if k is not None else 3.0 / np.sqrt(max(sub.number_of_nodes(), 1))
+        pos_sub = nx.spring_layout(sub, seed=seed, k=k_sub, weight=weight)
+
+        # normalize sub-layout to ~unit box (so spacing works regardless of size)
+        xs, ys = zip(*pos_sub.values())
+        dx = (max(xs) - min(xs)) or 1.0
+        dy = (max(ys) - min(ys)) or 1.0
+
+        gx, gy = i % cols, i // cols  # grid cell
+        ox, oy = gx * spacing, gy * spacing
+
+        for n, (x, y) in pos_sub.items():
+            pos[n] = (ox + (x - min(xs)) / dx, oy + (y - min(ys)) / dy)
+
+    return pos
+
 
 def _hierarchical_layout(
     G: nx.DiGraph,
@@ -170,7 +197,8 @@ def draw_graph_from_arrays(
     else:  # "spring"
         if k_layout is None:
             k_layout = 3.0 / (np.sqrt(max(G.number_of_nodes(), 1)))
-        pos = nx.spring_layout(G, seed=seed, k=k_layout, weight="prob")
+        # keep components separate:
+        pos = _spring_separate_components(G, seed=seed, k=k_layout, weight="prob", spacing=layer_spacing, directed=directed)
         if gravity != 0.0:
             for n, (x, y) in pos.items():
                 r = (x**2 + y**2) ** 0.5 + 1e-12
