@@ -1,14 +1,10 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
+# %%
+import sys
+sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GATv2Conv, TransformerConv
 import random
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -22,14 +18,15 @@ from torch.utils.data import Dataset, DataLoader, Subset, random_split
 import io, tarfile, os
 import copy
 from torch.nn.functional import binary_cross_entropy_with_logits as BCEwLogits
+from Stage1.GAT.GATModel import GraphAttentionNetwork
 if torch.cuda.is_available():
     torch.cuda.current_device()
 
-datafile = "/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs_parent_label.tar"
+datafile = "/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs_newtags.tar"
 
 plt.ion()
 
-SEED = 16
+SEED = 0
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -44,15 +41,13 @@ def set_seed(seed=42):
 
 set_seed(SEED)
 
-
+# %% [markdown]
 # ***BELOW***
 # If data-loading < 5-10 % of total epoch time with num_workers=0, stick with the simple path.
 # Otherwise, parallel loading with share-friendly torch_sparse.SparseTensor
 # almost always pays off.
 
-# In[2]:
-
-
+# %%
 # ───────────────────────────────────────────────────────── Tar-reader dataset
 class TarGraphDataset(Dataset):
     """
@@ -144,13 +139,12 @@ class TarGraphDataset(Dataset):
         Aei = self._npy_to_tensor(get("edge_index.npy"),  dtype=torch.int64)
         Lei = self._npy_to_tensor(get("label_index.npy"), dtype=torch.int64)
         y   = self._npy_to_tensor(get("label_value.npy"), dtype=torch.int64)
+        titleIdx = self._npy_to_tensor(get("titleIdx.npy"), dtype=torch.int64)
 
-        return fileinfo, X, Aei.t().contiguous(), Aef, Lei.t().contiguous(), Lef, y
-
-
-# In[3]:
+        return fileinfo, X, Aei.t().contiguous(), Aef, Lei.t().contiguous(), Lef, y, titleIdx
 
 
+# %%
 def concat_csr(blocks):
     """
     Vertically stack CSR matrices that all share the same n_cols.
@@ -191,9 +185,10 @@ def concat_csr(blocks):
 
 def sparse_graph_collate(batch):
     # unpack each graph
-    filenames, xs, aei, aef, lei, lef, ys = zip(*batch)
+    filenames, xs, aei, aef, lei, lef, ys, titleIdxs = zip(*batch)
 
     # node-count prefix sum for shifting
+    node_counts = [x.size(0) for x in xs]
     node_offsets = torch.cumsum(
         torch.tensor([0] + [x.size(0) for x in xs[:-1]]), 0)
 
@@ -217,7 +212,17 @@ def sparse_graph_collate(batch):
     Lef_batch = concat_csr(lef)
     y_batch   = torch.cat(ys)
 
-    return filenames, X_batch, Aei_batch, Aef_batch, Lei_batch, Lef_batch, y_batch
+    node_sizes = [x.size(0) for x in xs]
+    node_ptr = torch.zeros(len(node_sizes) + 1, dtype=torch.long)
+    node_ptr[1:] = torch.tensor(node_sizes, dtype=torch.long).cumsum(0)
+    title_idx_local = torch.tensor(titleIdxs, dtype=torch.long)
+
+    batch_vecs = []
+    for gid, count in enumerate(node_counts):
+        batch_vecs.append(torch.full((count,), gid, dtype=torch.long))
+    batch = torch.cat(batch_vecs, dim=0)
+
+    return filenames, X_batch, Aei_batch, Aef_batch, Lei_batch, Lef_batch, y_batch, batch, node_ptr, title_idx_local
 
 def debug_collate(batch):
     _, xs, aei, aef, lei, lef, ys = zip(*batch)
@@ -242,311 +247,198 @@ def make_loader(ds, batch_size=1, shuffle=False):
                       num_workers=0,
                       pin_memory=True)    # fast GPU transfer
 
-
-# In[4]:
-
-
-# dataset   = TarGraphDataset("../../data/swde_HTMLgraphs.tar")
-# loader    = make_loader(dataset, batch_size=8, shuffle=False)
-
-# next(iter(loader))
-
-# count = 0
-# for fileinfo, X, Aei, Aef, Lei, Lef, y in loader:
-#     print(fileinfo)
-#     count +=1
-# print(count)
-
-
-# In[5]:
-
-
-# This is a lazy loader for individual files
-
-# class LazyGraphDataset(Dataset):
-#     """
-#     Each graph lives in its own .npz / .pt / whatever on disk.
-#     __getitem__ loads it just-in-time.
-#     """
-
-#     def __init__(self, folderpaths):
-#         """
-#         meta_csv: a CSV (or list of dicts) with columns:
-#             path_X, path_A_index, path_A_feat, path_L_index, path_L_feat, path_y
-#         Only these tiny strings stay in RAM.
-#         """
-#         self.folderpaths = list(folderpaths)
-
-#     def _import_tensor(self, filename: str, dtype: torch.dtype, is_sparse: bool = False):
-#         """
-#         Load a .npz CSR matrix and return either
-#         • a torch.sparse_csr_tensor              (if is_sparse=True)
-#         • a torch.Tensor (dense)                 (otherwise)
-#         """
-#         csr = sparse.load_npz(filename).tocsr()
-
-#         if is_sparse:
-#             crow = torch.from_numpy(csr.indptr.astype(np.int64))
-#             col  = torch.from_numpy(csr.indices.astype(np.int64))
-#             val  = torch.from_numpy(csr.data).to(dtype)
-#             return torch.sparse_csr_tensor(crow, col, val,size=csr.shape, dtype=dtype, requires_grad=False)
-#         # — otherwise densify —
-#         return torch.from_numpy(csr.toarray()).to(dtype)
-
-#     def __getitem__(self, idx):
-#         folder_path = self.folderpaths[idx]
-
-#         X = self._import_tensor((folder_path/"X.npz"), torch.float32, is_sparse=False)
-#         #A = self._import_tensor(folder_path/"A.npz", torch.long, True)
-#         Aef = self._import_tensor((folder_path/"E.npz"), torch.float32, is_sparse=True)
-#         Aei = torch.from_numpy(np.load((folder_path/"edge_index.npy")))
-#         Lef = self._import_tensor((folder_path/"labels.npz"), torch.float32, is_sparse=True)
-#         Lei = torch.from_numpy(np.load((folder_path/"label_index.npy")))
-#         y = torch.from_numpy(np.load((folder_path/"label_value.npy")))
-
-#         return X, Aei, Aef, Lei, Lef, y
-
-#     def __len__(self):
-#         return len(self.folderpaths)
-
-# def graph_collate(batch):
-#     # batch is a list of tuples
-#     xs, aei, aef, lei, lef, ys = zip(*batch)   # tuples of length B
-
-#     return (list(xs),                          # list of sparse X
-#             list(aei),                         # list of edge_index
-#             list(aef),                         # list of sparse A_edge_feat
-#             list(lei),
-#             list(lef),
-#             list(ys))                          # dense y can still be list/stack
-
-# def make_loader(dataset, batch_size=1, shuffle=False):
-#     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=graph_collate, num_workers=0, pin_memory=True)
-
-
-# In[6]:
-
-
-# def walk_limited(root: Path, max_depth: int, pat: str):
-#     root_depth = len(root.parts)
-#     for dirpath, dirnames, _ in os.walk(root):
-#         depth = len(Path(dirpath).parts) - root_depth
-#         if depth > max_depth:
-#             # prune traversal
-#             dirnames[:] = []
-#             continue
-#         for d in dirnames:
-#             p = Path(dirpath, d)
-#             if p.match(pat):
-#                 yield p
-
-# src = Path("/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs/movie/movie")
-# batch_dirs = list(walk_limited(src, max_depth=2, pat='[0-9][0-9][0-9][0-9]'))
-# print(src.exists())
-# batchFiles = list(src.rglob("[0-9][0-9][0-9][0-9]"))
-# print(len(batchFiles))
-# dataset = LazyGraphDataset(batchFiles)
-# dataloader = make_loader(dataset, batch_size=1, shuffle=False)
-
-
-# In[7]:
-
-
-# for Xs, Aeis, Aefs, Leis, Lefs, ys in dataloader:
-#     print(Xs[0].shape, Aeis[0].shape, Aefs[0].shape, Leis[0].shape, Lefs[0].shape, ys[0].shape)
-#     break
-
-
-# In[8]:
-
-
-# # Helper function to normalise the A matrix
-# def symmetric_normalize(A_tilde):
-#     """
-#     Performs symmetric normalization of A_tilde (Adj. matrix with self loops):
-#       A_norm = D^{-1/2} * A_tilde * D^{-1/2}
-#     Where D_{ii} = sum of row i in A_tilde.
-
-#     A_tilde (N, N): Adj. matrix with self loops
-#     Returns:
-#       A_norm : (N, N)
-#     """
-
-#     eps = 1e-5
-#     d = A_tilde.sum(dim=1) + eps
-#     D_inv = torch.diag(torch.pow(d, -0.5))
-#     return (D_inv @ A_tilde @ D_inv).to(torch.float32)
-
-
-# In[9]:
-
-
+# %%
 def plot_metrics_live(
     train_vals,
     val_vals,
+    p, r, f1,                 # new metric lists (same length as train/val)
     save_path,
     xlabel="Epoch",
-    ylabel="Metric",
-    title="Training & Validation",
+    ylabel_left="Loss / Accuracy",
+    ylabel_right="P · R · F1",
+    title="Training progress",
     fig_ax=None
 ):
     """
-    Live‐updating single‐axis plot of training vs validation values.
-    Call each epoch with the growing lists `train_vals` and `val_vals`.
-    Returns (fig, ax) so you can pass them back in.
-    """
-    # First call: create figure & axis
-    if fig_ax is None:
-        fig, ax = plt.subplots(figsize=(8,5))
-    else:
-        fig, ax = fig_ax
-
-    # Clear and redraw
-    ax.cla()
-    epochs = range(1, len(train_vals) + 1)
-
-    ax.plot(epochs, train_vals, '-o', label="Train", markersize=4)
-    ax.plot(epochs, val_vals,   '-s', label="Val",   markersize=4)
-
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    ax.grid(True)
-    ax.legend(loc="best")
-
-    fig.tight_layout()
-
-    fig.savefig(Path(save_path), dpi=150)
-
-    return fig, ax
-
-
-# In[10]:
-
-
-# To advance the model, use the methods in https://arxiv.org/pdf/2311.02921
-
-class GraphAttentionNetwork(nn.Module):
-    """
-    HTML‑graph model
-
-        X  ─╮
-            │  GAT( 96 → 64 )
-            │  ReLU
-            │  GAT( 64 → 32 )
-            │  ReLU
-            └─ Edge‑feature constructor
-                      [h_i ‖ h_j ‖ φ(e_ij)] ─► MLP(69 → 1)
+    Live-updating dual-axis plot.
+    Call once per epoch with the (growing) metric lists.
 
     Parameters
     ----------
-    in_dim          : node‑feature size   (= 96)
-    edge_in_dim     : raw edge‑feature size (= 197)
-    edge_emb_dim    : Edge-feature MLP output dims
+    train_vals, val_vals : list[float]
+        Main metric to compare (e.g. loss or accuracy).
+    p, r, f1 : list[float]
+        Precision, recall, f1 – plotted on a secondary y-axis.
+    save_path : str or Path
+        Where to write the PNG each time.
+    fig_ax : tuple(fig, (ax_left, ax_right)) | None
+        Pass back what you got from the previous call to avoid flicker.
+
+    Returns
+    -------
+    (fig, (ax_left, ax_right))
+        Feed this straight back into the next call.
+    """
+    # ---------- figure / axes boilerplate ----------
+    if fig_ax is None:
+        fig, ax_left = plt.subplots(figsize=(8, 5))
+        ax_right = ax_left.twinx()
+    else:
+        fig, (ax_left, ax_right) = fig_ax
+
+    # ---------- clear and redraw ----------
+    ax_left.cla()
+    ax_right.cla()
+
+    epochs = range(1, len(train_vals) + 1)
+
+    # left-axis curves
+    ax_left.plot(epochs, train_vals, "-o", label="Train", markersize=4)
+    ax_left.plot(epochs, val_vals,   "-s", label="Val",   markersize=4)
+    ax_left.set_xlabel(xlabel)
+    ax_left.set_ylabel(ylabel_left)
+    ax_left.grid(True, axis="both")
+
+    # right-axis curves
+    ax_right.plot(epochs, p,  "--d", label="Precision", markersize=4)
+    ax_right.plot(epochs, r,  "--^", label="Recall",    markersize=4)
+    ax_right.plot(epochs, f1, "--*", label="F1",        markersize=4)
+    ax_right.set_ylabel(ylabel_right)
+
+    # one combined legend
+    lines_l, labels_l = ax_left.get_legend_handles_labels()
+    lines_r, labels_r = ax_right.get_legend_handles_labels()
+    ax_left.legend(lines_l + lines_r, labels_l + labels_r, loc="upper center", ncol=5)
+
+    ax_left.set_title(title)
+    fig.tight_layout()
+    fig.savefig(Path(save_path), dpi=150)
+
+    return fig, (ax_left, ax_right)
+
+# %%
+def per_graph_title_loss(title_logits: torch.Tensor,
+                         node_ptr: torch.Tensor,
+                         title_idx_local: torch.Tensor,
+                         ignore_index: int = -1,
+                         reduction: str = "mean") -> torch.Tensor:
+    """
+    title_logits:      (TotalN,) logits for ALL nodes in the batch (from your title head)
+    node_ptr:          (G+1,) cumulative counts: [0, n0, n0+n1, ...]
+    title_idx_local:   (G,)   per-graph LOCAL index 0..n_g-1 (or ignore_index for missing)
+    """
+    device = title_logits.device
+    losses = []
+    G = title_idx_local.numel()
+    for g in range(G):
+        t = title_idx_local[g].item()
+        if t == ignore_index:   # allow graphs without title
+            continue
+        s, e = node_ptr[g].item(), node_ptr[g+1].item()
+        lg = title_logits[s:e]                    # (n_g,)
+        # CE expects (N, C). Treat as 1 sample with C=n_g classes:
+        loss_g = F.cross_entropy(lg.unsqueeze(0),
+                                 torch.tensor([t], device=device, dtype=torch.long))
+        losses.append(loss_g)
+    if not losses:
+        # produce a 0 loss that still backprops cleanly
+        return title_logits.sum() * 0.0
+    return torch.stack(losses).mean() if reduction == "mean" else torch.stack(losses).sum()
+
+
+def focal_loss(logits, targets, alpha = 0.25, gamma = 2.0, reduction: str = "mean"):
+    bce = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    p_t = torch.exp(-bce)          # = σ(z) if y==1 else 1-σ(z)
+    loss = (alpha * (1.0 - p_t).pow(gamma) * bce)
+    return loss.mean() if reduction == "mean" else loss.sum()
+
+
+# ---------- 2. Pair-wise AUC (logistic ranking) loss -------------------------
+def pairwise_auc_loss(logits, targets, sample_k: int | None = None):
+    """
+    logits   : float tensor (B,)
+    targets  : {0,1} tensor (B,)
+    sample_k : optional int – #negatives to sample per positive.  If None,
+               uses *all* positives × negatives (can be heavy for big batches).
+    """
+    pos_logits = logits[targets == 1]      # shape (P,)
+    neg_logits = logits[targets == 0]      # shape (N,)
+
+    if pos_logits.numel() == 0 or neg_logits.numel() == 0:
+        # No valid pairs (edge cases in small batches) – return 0 so it
+        # doesn't break the graph.
+        return logits.new_tensor(0.0, requires_grad=True)
+
+    # --- optional negative subsampling to save memory ---
+    if sample_k is not None and neg_logits.numel() > sample_k:
+        idx = torch.randperm(neg_logits.numel(), device=logits.device)[:sample_k]
+        neg_logits = neg_logits[idx]
+
+    # Broadcast positives against negatives: diff = s_pos - s_neg
+    diff = pos_logits[:, None] - neg_logits[None, :]        # (P, N) or (P, k)
+    loss = F.softplus(-diff)                                # log(1+e^(-diff))
+
+    return loss.mean()
+
+
+# ---------- 3. Combined wrapper ----------------------------------------------
+class PairwiseAUCFocalLoss(nn.Module):
+    """
+    total_loss = pairwise_auc_loss + lambda_focal * focal_loss
     """
     def __init__(self,
-                 in_dim: int        = 96,
-                 edge_in_dim: int   = 197,
-                 edge_emb_dim: int  = 8,
-                 hidden1: int       = 128,
-                 hidden2: int       = 64,
-                 hidden3: int       = 32,
-                 heads:  int        = 4):
+                 gamma: float = 2.0,
+                 alpha: float = 0.25,
+                 lambda_focal: float = 0.5,
+                 sample_k: int | None = None):
         super().__init__()
+        self.gamma = gamma
+        self.alpha = alpha
+        self.lambda_focal = lambda_focal
+        self.sample_k = sample_k
 
-        # ── Node-level encoder (edge-aware) ────────────────────────────
-        self.tr1 = TransformerConv(
-            in_channels      = in_dim,
-            out_channels     = hidden1,
-            heads            = heads,
-            edge_dim         = edge_emb_dim,
-            dropout          = 0.1,
-            beta             = True         # learnable α in α·x + (1-α)·attn
+    def forward(self, logits, targets):
+        loss_rank = pairwise_auc_loss(
+            logits, targets, sample_k=self.sample_k
         )
-        self.tr2 = TransformerConv(
-            in_channels      = hidden1 * heads,
-            out_channels     = hidden2,
-            heads            = heads,
-            edge_dim         = edge_emb_dim,
-            dropout          = 0.1,
-            beta             = True
+        loss_focal = focal_loss(
+            logits, targets, alpha=self.alpha, gamma=self.gamma
         )
-        self.tr3 = TransformerConv(
-            in_channels      = hidden2 * heads,
-            out_channels     = hidden3,
-            heads            = 1,
-            edge_dim         = edge_emb_dim,
-            dropout          = 0.1,
-            beta             = True
-        )
-
-        # ── Edge feature projector ────────────── (It is not an explicit linear layer as it works on a sparse matrix)
-        self.W_edge = nn.Parameter(torch.empty(edge_in_dim, edge_emb_dim))
-        nn.init.xavier_uniform_(self.W_edge)
-
-        # ── Edge-level MLP decoder (unchanged) ────────────────────────
-        self.edge_mlp = nn.Sequential(
-            nn.Linear(hidden3 * 2 + edge_emb_dim, hidden3),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(hidden3, 1)
-        )
-
-    # ---------------------------------------------------------------------
-
-    def forward(
-        self,
-        x_dense: torch.Tensor,        # (N_nodes, 96)          sparse
-        A_edge_index: torch.Tensor,   # (2, nnz_A)             COO  (from A)
-        A_edge_attr: torch.Tensor,    # (nnz_A, 197)           dense / sparse.mm
-        E_edge_index: torch.Tensor,   # (2, N_E)               candidates
-        E_edge_attr: torch.Tensor     # (N_E, 197)             sparse features
-    ):
-        # 1) node features
-        #x = x_sparse.to_dense()
-        A_edge_emb = torch.sparse.mm(A_edge_attr, self.W_edge)     # (nnz_A , 8)
-        
-        # 2) edge-aware GATv2 layers
-        h = F.relu( self.tr1(x_dense, A_edge_index, A_edge_emb) )
-        h = F.relu( self.tr2(h,        A_edge_index, A_edge_emb) )
-        h = F.relu( self.tr3(h,        A_edge_index, A_edge_emb) )
-
-        # 3) candidate-edge projection  φ(E) = E @ W_edge
-        E_edge_emb = torch.sparse.mm(E_edge_attr, self.W_edge)     # (N_E , 8)
-        
-        # 4) gather node embeddings and classify
-        src, dst = E_edge_index
-        z = torch.cat([h[src], h[dst], E_edge_emb], dim=1)      # (N_E , 72)
-        return self.edge_mlp(z).squeeze(-1)                   # (N_E ,) returns the logits
+        return loss_rank * (1 - self.lambda_focal) + self.lambda_focal * loss_focal
 
 
-# In[11]:
-
-
-CLIP_NORM = 1.0           # gradient clipping
+# %%
+CLIP_NORM = 2.0           # gradient clipping
 
 # ---------- one epoch --------------------------------------------------------
 def train_epoch(model, loader, optimizer,
-                criterion=BCEwLogits, device="cpu"):
+                criterion, sched, epoch, totalEpoch, device="cpu", **kwargs):
 
     model.train()
+    
     running_loss, running_edges = 0.0, 0
     count = 0
     l = len(loader)
 
-    for _, X, Aei, Aef, Lei, Lef, y in loader:
+    for f, X_sparse, Aei, Aef, Lei, Lef, y, batch, node_ptr, title_idx_local in loader:
         count += 1
-        X, Aei, Aef = X.to(device), Aei.to(device), Aef.to(device)
+        X_sparse, Aei, Aef = X_sparse.to(device), Aei.to(device), Aef.to(device)
         Lei, Lef, y = Lei.to(device), Lef.to(device), y.to(device)
+        batch = batch.to(device)
+        node_ptr, title_idx_local = node_ptr.to(device), title_idx_local.to(device)
 
         optimizer.zero_grad()
         
-        logits = model(X, Aei, Aef, Lei, Lef)          # (N_label,)
-        loss   = criterion(logits, y.float())
+        edge_logits, title_logits = model(X_sparse, batch, Aei, Aef, Lei, Lef, kwargs["p_Lef_drop"], kwargs["use_E_attr"], kwargs["use_A_attr"], return_title=True)          # (N_label,)
+
+        edge_loss  = criterion(edge_logits, y.float())
+        title_loss = per_graph_title_loss(title_logits, node_ptr, title_idx_local)
+        loss = edge_loss + kwargs["lambda_title"] * title_loss
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP_NORM)
         optimizer.step()
+        sched.step()
 
         running_loss  += loss.item() * y.numel()
         running_edges += y.numel()
@@ -560,22 +452,30 @@ def train_epoch(model, loader, optimizer,
 
 # ---------- evaluation -------------------------------------------------------
 @torch.no_grad()
-def eval_edge_model(model, loader, criterion, device="cpu", thr=0.5):
+def eval_edge_model(model, loader, criterion, device="cpu", thr_type="median", **kwargs):
     model.eval()
     TP = FP = FN = 0
+    TP2 = FP2 = FN2 = 0
     running_loss, running_edges = 0.0, 0
 
     filenames = []
-    for f, X, Aei, Aef, Lei, Lef, y in loader:
+    for f, X_sparse, Aei, Aef, Lei, Lef, y, batch, node_ptr, title_idx_local in loader:
         filenames += f
-        X, Aei, Aef = X.to(device), Aei.to(device), Aef.to(device)
+        X_sparse, Aei, Aef = X_sparse.to(device), Aei.to(device), Aef.to(device)
         Lei, Lef, y = Lei.to(device), Lef.to(device), y.to(device)
+        batch = batch.to(device)
+        node_ptr, title_idx_local = node_ptr.to(device), title_idx_local.to(device)
 
-        logits = model(X, Aei, Aef, Lei, Lef)
-        loss   = criterion(logits, y.float())
+        #Complete Model
+        edge_logits, title_logits = model(X_sparse, batch, Aei, Aef, Lei, Lef, 0, kwargs["use_E_attr"], kwargs["use_A_attr"], return_title=True)
+        edge_loss  = criterion(edge_logits, y.float())
+        title_loss = per_graph_title_loss(title_logits, node_ptr, title_idx_local)
+        loss = edge_loss + kwargs["lambda_title"] * title_loss
         running_loss  += loss.item() * y.numel()
         running_edges += y.numel()
-        probs  = torch.sigmoid(logits)
+        probs  = torch.sigmoid(edge_logits)
+        if thr_type=="median":
+            thr = torch.median(probs)
 
         pred = (probs >= thr).long()
         TP  += ((pred == 1) & (y == 1)).sum().item()
@@ -583,15 +483,13 @@ def eval_edge_model(model, loader, criterion, device="cpu", thr=0.5):
         FN  += ((pred == 0) & (y == 1)).sum().item()
 
     print(f"Validating {np.unique([filename[:-5] for filename in filenames])} website type")
+    
     prec = TP / (TP + FP + 1e-9)
     rec  = TP / (TP + FN + 1e-9)
     f1   = 2 * prec * rec / (prec + rec + 1e-9)
     return running_loss / running_edges, prec, rec, f1
 
-
-# In[ ]:
-
-
+# %%
 def train_model(model,
                 train_loader,
                 val_loader,
@@ -602,9 +500,9 @@ def train_model(model,
                 patience       = 10,
                 device         = "cpu"):
 
-    print("Woo lets go")
+    print(model)
 
-    model_path = "./model_in_training.pth"
+    model_path = "./model_in_training.pt"
     if os.path.exists(model_path) and load_checkpoint:
         print("loading existing model...")
         model.load_state_dict(torch.load(model_path))
@@ -612,27 +510,41 @@ def train_model(model,
     model.to(device)
     
     opt   = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched = lr_scheduler.ReduceLROnPlateau(opt, mode="max",
-                                          patience=patience, factor=0.5)
-    criterion = BCEwLogits
+    sched = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
+                   pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
+                        #StepLR(opt, step_size=3, gamma=0.9)
+    criterion = focal_loss
+    # criterion = PairwiseAUCFocalLoss(
+    #             gamma=2.0,
+    #             alpha=0.25,
+    #             lambda_focal=1,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
+    #             sample_k=128     # speeds up training; set None for exact loss
+    #         )
+    #criterion = nn.BCEWithLogitsLoss()
 
-    best_f1, fig_ax, best_state, train_loss, val_loss = 0.0, None, None, [], []
+    best_f1, fig_ax, best_state = 0.0, None, None
+    train_loss, val_loss, precision, recall, f1score = [], [], [], [], []
 
     for epoch in range(1, num_epochs + 1):
-        
-        loss = train_epoch(model, train_loader, opt, criterion=criterion, device=device)
+        lambda_title = 0.02 if epoch > 2 else 0
+        p_Lef_drop = 0#.3 - 0.3 * (epoch-2)/(num_epochs-2 + 1e-9)        
+        use_E_attr,  use_A_attr = (epoch>0), (epoch>0)
+
+        loss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
         train_loss.append(loss)
 
         if epoch % validate_every == 0 or epoch == num_epochs:
-            loss, p, r, f1 = eval_edge_model(model, val_loader, criterion, device=device)
+            loss, p, r, f1 = eval_edge_model(model, val_loader, criterion, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, lambda_title=lambda_title)
             val_loss.append(loss)
-            sched.step(f1)
 
             lr_now = opt.param_groups[0]["lr"]
             print(f"Epoch {epoch:03d}/{num_epochs} "
-                  f"loss={loss:.4f}  P={p:.3f} R={r:.3f} F1={f1:.3f}  lr={lr_now:.2e}")
+                  f"loss={loss:.4f}  P={p:.3f} R={r:.3f} F1={f1:.3f}  lr={lr_now:.2e}  E_features={use_E_attr} A_features={use_A_attr}")
+            precision.append(p)
+            recall.append(r)
+            f1score.append(f1)
 
-            if f1 > best_f1:
+            if f1 >= best_f1:
                 best_f1, best_state = f1, copy.deepcopy(model.state_dict())
 
             # if lr_now < 1e-5:
@@ -642,16 +554,17 @@ def train_model(model,
             fig_ax = plot_metrics_live(
                 train_loss,
                 val_loss,
+                precision,recall,f1score,
                 "CurrentRun",
                 xlabel="Epoch",
-                ylabel="Loss",
+                ylabel_left="Loss",
+                ylabel_right="P · R · F1",
                 title="Model Performance",
                 fig_ax=fig_ax
             )
             
-            if load_checkpoint:
-                with torch.no_grad():
-                    torch.save(model.state_dict(), model_path)
+            with torch.no_grad():
+                torch.save(model.state_dict(), model_path)
 
     if best_state is not None:
         model.load_state_dict(best_state)
@@ -659,40 +572,64 @@ def train_model(model,
     return best_state, train_loss, val_loss, fig_ax
 
 
-# In[ ]:
-
-
+# %%
 dataset = TarGraphDataset(datafile)
 N = len(dataset)
 # n_train = int(0.95 * N)
 # n_val   = N - n_train
 # train_ds, val_ds = random_split(dataset, [n_train, n_val])
-val_start, val_end = dataset.get_sublen('movie-amctv(2000)')
-val_idx = list(range(val_start, val_end))  
-train_idx = list(set(range(N)) - set(val_idx))
+matchcollege_start, matchcollege_end = dataset.get_sublen('university-matchcollege(2000)')
+allmovie_start, allmovie_end = dataset.get_sublen('movie-allmovie(2000)')
+imdb_start, imdb_end = dataset.get_sublen('movie-imdb(2000)')
+usatoday_start, usatoday_end = dataset.get_sublen('nbaplayer-usatoday(436)')
+yahoo_start, yahoo_end = dataset.get_sublen('nbaplayer-yahoo(438)')
+matchcollege_idx = list(range(matchcollege_start, matchcollege_end))
+allmovie_idx = list(range(allmovie_start, allmovie_end))
+imdb_idx = list(range(imdb_start, imdb_end))
+usatoday_idx=list(range(usatoday_start, usatoday_end))
+yahoo_idx=list(range(yahoo_start, yahoo_end))
+
+val_idx = list(set(allmovie_idx))#list(set(matchcollege_idx[-10:])) + list(set(allmovie_idx[-10:]))#
+train_idx = list(set(range(N)) - set(val_idx) - set(usatoday_idx) - set(yahoo_idx))#list(set(matchcollege_idx + allmovie_idx) - set(val_idx))#
 train_ds = Subset(dataset, train_idx)
 val_ds   = Subset(dataset, val_idx)
 
-train_loader = make_loader(train_ds, batch_size=256, shuffle=True)
-val_loader = make_loader(val_ds, batch_size=256, shuffle=True)
+train_loader = make_loader(train_ds, batch_size=1024, shuffle=True)
+val_loader = make_loader(val_ds, batch_size=512, shuffle=True)
 
-model = GraphAttentionNetwork(in_dim = 96, edge_in_dim = 197, edge_emb_dim = 8, hidden1 = 64, hidden2 = 32, heads = 1)
+model = GraphAttentionNetwork(in_dim = 119, pe_dim=11, edge_in_dim = 210, edge_emb_dim = 32, heads = 4)#16,32,4 was the winner
 
-load_checkpoint = True
+load_checkpoint = False
 _, trainloss, valloss, fig_ax = train_model(model,
             train_loader,
             val_loader,
             load_checkpoint,
-            num_epochs     = 250,
-            lr             = 1e-2,
+            num_epochs     = 399,
+            lr             = 1e-3,
             validate_every = 1,
-            patience       = 5,
+            patience       = 1,
             device         = "cuda")
 
-
-# In[ ]:
-
-
+# %%
 #Save model
-torch.save(model.state_dict(), "modelnewdata.pt")
+torch.save(model.state_dict(), "TrueTransformer-newtagsnotitle.pt")
+
+# %%
+# model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
+# if os.path.exists(model_path) and load_checkpoint:
+#     print("loading existing model...")
+#     model.load_state_dict(torch.load(model_path))
+
+
+
+#eval_edge_model(model, val_loader, focal_loss, device="cuda", use_E_attr=True, use_A_attr=True)
+#b4 submitting to A100
+#Experiemnt with the comparison loss
+#Do self layers myself
+#
+#Graphs of also without edges
+
+#32 32 layers
+#Just train everything from the start
+
 
