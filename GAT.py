@@ -517,8 +517,8 @@ def train_model(model,
     # criterion = PairwiseAUCFocalLoss(
     #             gamma=2.0,
     #             alpha=0.25,
-    #             lambda_focal=1,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
-    #             sample_k=128     # speeds up training; set None for exact loss
+    #             lambda_focal=0.9,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
+    #             sample_k=None     # speeds up training; set None for exact loss
     #         )
     #criterion = nn.BCEWithLogitsLoss()
 
@@ -546,6 +546,8 @@ def train_model(model,
 
             if f1 >= best_f1:
                 best_f1, best_state = f1, copy.deepcopy(model.state_dict())
+                with torch.no_grad():
+                    torch.save(model.state_dict(), model_path)
 
             # if lr_now < 1e-5:
             #     print("Stop: LR < 1e-5")
@@ -555,7 +557,7 @@ def train_model(model,
                 train_loss,
                 val_loss,
                 precision,recall,f1score,
-                "CurrentRun",
+                "TrueTransformer-newtagsnotitle",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -563,8 +565,7 @@ def train_model(model,
                 fig_ax=fig_ax
             )
             
-            with torch.no_grad():
-                torch.save(model.state_dict(), model_path)
+            
 
     if best_state is not None:
         model.load_state_dict(best_state)
@@ -594,8 +595,8 @@ train_idx = list(set(range(N)) - set(val_idx) - set(usatoday_idx) - set(yahoo_id
 train_ds = Subset(dataset, train_idx)
 val_ds   = Subset(dataset, val_idx)
 
-train_loader = make_loader(train_ds, batch_size=1024, shuffle=True)
-val_loader = make_loader(val_ds, batch_size=512, shuffle=True)
+train_loader = make_loader(train_ds, batch_size=512, shuffle=True)
+val_loader = make_loader(val_ds, batch_size=256, shuffle=True)
 
 model = GraphAttentionNetwork(in_dim = 119, pe_dim=11, edge_in_dim = 210, edge_emb_dim = 32, heads = 4)#16,32,4 was the winner
 
@@ -604,7 +605,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
             train_loader,
             val_loader,
             load_checkpoint,
-            num_epochs     = 399,
+            num_epochs     = 299,
             lr             = 1e-3,
             validate_every = 1,
             patience       = 1,
