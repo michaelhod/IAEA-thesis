@@ -30,7 +30,7 @@ class GraphAttentionNetwork(nn.Module):
                  heads:  int        = 4):
         super().__init__()
 
-        self.pe_lin = nn.Linear(18, pe_dim)
+        self.pe_lin = nn.Linear(18, pe_dim) # There are 18 positional features in the node features
         self.pe_norm = nn.BatchNorm1d(18)
 
         self.convs = nn.ModuleList()
