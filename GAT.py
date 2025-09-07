@@ -502,7 +502,7 @@ def train_model(model,
 
     print(model)
 
-    model_path = "./model_in_training.pt"
+    model_path = "./TrueTransformer-newtagsnotitle-aucloss.pt"
     if os.path.exists(model_path) and load_checkpoint:
         print("loading existing model...")
         model.load_state_dict(torch.load(model_path))
@@ -510,16 +510,16 @@ def train_model(model,
     model.to(device)
     
     opt   = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
-                   pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
+    sched = lr_scheduler.OneCycleLR(opt, max_lr=8e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
+                   pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e3, cycle_momentum=False)
                         #StepLR(opt, step_size=3, gamma=0.9)
-    criterion = focal_loss
-    # criterion = PairwiseAUCFocalLoss(
-    #             gamma=2.0,
-    #             alpha=0.25,
-    #             lambda_focal=0.9,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
-    #             sample_k=None     # speeds up training; set None for exact loss
-    #         )
+    # criterion = focal_loss
+    criterion = PairwiseAUCFocalLoss(
+                gamma=2.0,
+                alpha=0.25,
+                lambda_focal=0.9,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
+                sample_k=5096     # speeds up training; set None for exact loss
+            )
     #criterion = nn.BCEWithLogitsLoss()
 
     best_f1, fig_ax, best_state = 0.0, None, None
@@ -557,7 +557,7 @@ def train_model(model,
                 train_loss,
                 val_loss,
                 precision,recall,f1score,
-                "TrueTransformer-newtagsnotitle",
+                "TrueTransformer-newtagsnotitle-aucloss",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -605,15 +605,15 @@ _, trainloss, valloss, fig_ax = train_model(model,
             train_loader,
             val_loader,
             load_checkpoint,
-            num_epochs     = 299,
-            lr             = 1e-3,
+            num_epochs     = 250,
+            lr             = 8e-4,
             validate_every = 1,
             patience       = 1,
             device         = "cuda")
 
 # %%
 #Save model
-torch.save(model.state_dict(), "TrueTransformer-newtagsnotitle.pt")
+torch.save(model.state_dict(), "TrueTransformer-newtagsnotitle-aucloss.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
