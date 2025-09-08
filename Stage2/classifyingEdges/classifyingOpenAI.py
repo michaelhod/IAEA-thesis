@@ -53,7 +53,7 @@ Important:
 - Judge only within each pair, no outside knowledge.
 """
 
-USER_HEADER = "\nClassify each, one by one\n\n"
+USER_HEADER = "\nClassify each, one by one:\n\n"
 USER_FOOTER = "\n\nOutput {N} space separated integers ONLY:"
 
 # ---------- token helpers ----------

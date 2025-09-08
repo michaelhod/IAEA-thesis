@@ -38,16 +38,12 @@ Explicitly state everything, even if it means repeating words.
 Be concise. Seperate the facts with "\\n".
 """
 
-CLUSTER_PROMPT = """The input entries contain category headers and category values.
-Group the entries into categories.
-Treat the first entry in each group as the category header.
-Each category should be on its own line.
-Start the line with the header.
-If the category has values, separate them from the header with " | ".
-If multiple values belong to a category, separate them with " | ".
-If a category has no values, print only the header.
-Use each entry exactly once.
-Do not add labels, quotes, or text that is not in the entries.
+CLUSTER_PROMPT = """Facts are a declarative, verifiable claim with a concrete subject and predicate that can be true or false.
+The INPUTS are related to each other.
+Combine the INPUTS to form a list of useful facts.
+The order of the INPUTS is irrelevant.
+The previous fact must not imply something in the next fact.
+Be concise. Seperate the facts with "\\n".
 """
 
 # CLUSTER_PROMPT = """The input entries contain category headers and category values.
@@ -272,7 +268,7 @@ def summairse_clusters(wordclusters, dry_run_confirm=True, batch_size: int | Non
     for batch_idx in range(0, len(wordclusters), batch_size):
         batch = wordclusters[batch_idx:batch_idx+batch_size]
 
-        user_prompt = USER_HEADER + "INPUT ENTRIES: " +"\n\nINPUT ENTRIES: ".join(["\n\t\""+"\"\n\t\"".join(words)+"\"" for words in batch]) + "\n\nOutput:"
+        user_prompt = USER_HEADER + "\n\nINPUT GROUP: " +"\n\nINPUT GROUP: ".join(["\nINPUT\t\""+"\"\nINPUT\t\"".join(words)+"\"" for words in batch]) + "\n\nFACTS:"
         used_in_tokens = in_SYST + _count_tokens(user_prompt)
 
         print(f"\nBatch {batch_idx}: ~input tokens={used_in_tokens:,}, "
@@ -280,7 +276,7 @@ def summairse_clusters(wordclusters, dry_run_confirm=True, batch_size: int | Non
 
         # Call API (no JSON; tiny output)
         resp = client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-4.1-nano",
             input=[
                 {"role": "system", "content": CLUSTER_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -497,7 +493,10 @@ if __name__ == "__main__":
 "V 155010"]]
     sample_pairs = [entry[::-1] for entry in sample_pairs]
     sample_pairs = [["Adam Forshaw's immediate future on the pitch is uncertain as he recovers from surgery but the midfielder's stay at the club going forward is also reportedly in doubt.",'Leeds team news']]
-    labels = add_context(sample_pairs, dry_run_confirm=False, max_batch_size=1)
+    sample_pairs = [['Work Rating', "The Son's Room 2001, Nanni Moretti", 'The Bed You Sleep In 1993, Jon Jost', 'The Pledge 2001, Sean Penn', 'Family Viewing 1987, Atom Egoyan', 'In the Bedroom 2001, Todd Field', 
+                     #"Atom Egoyan's haunting adaptation of the Russell Banks novel The Sweet Hereafter was the Canadian filmmaker's most successful film to date, taking home a Special Grand Jury Prize at the 1997 Cannes Film Festival and scoring a pair of Academy Award nominations, including Best Director. Restructured to fit Egoyan's signature mosaic narrative style, the story concerns the cultural aftershocks which tear apart a small British Columbia town in the wake of a school-bus accident which leaves a number of local children dead. Ian Holm stars as Mitchell Stephens, a big-city lawyer who arrives in the interest of uniting the survivors to initiate a lawsuit his maneuvering only drives the community further apart, reopening old wounds and jeopardizing any hopes of emotional recovery. Like so many of Egoyan's features, The Sweet Hereafter is a serious and painfully honest exploration of family grief no character is immune from the sense of utter devastation which grips the film, not even the attorney, whose interests are in part motivated by his own remorse over the fate of his daughter, an HIV-positive drug addict.", 
+                     'The Five Senses 1999, Jeremy Podeswa', 'The Ice Storm 1997, Ang Lee', 'Blue 1993, Krzysztof Kieslowski', "L'Humanit 1999, Bruno Dumont", 'Eureka 2000, Shinji Aoyama', 'Corrections to this Entry', 'Similar Works', 'Director', 'Atom Egoyan', 'Other Related Works', 'The War Zone 1999, Tim Roth', 'by Jason Ankeny', 'Plot Synopsis']]
+    labels = summairse_clusters(sample_pairs, dry_run_confirm=False, batch_size=1)
     for pair, label in zip(sample_pairs, labels):
         print()
         print(label)

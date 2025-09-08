@@ -131,8 +131,10 @@ def draw_graph_from_arrays(
     gravity: float = 0.0,               # small negative to push apart components (spring/kk)
     show_colorbar: bool = True,
     directed: bool = True,
-    node_size: int = 900,
+    node_size: int = 300,
     font_size: int = 9,
+    node_txt_colour="black",
+    draw_edge_labels = True,
 ) -> Dict[str, Any]:
     """
     Build & display a graph image from parallel edge arrays.
@@ -223,7 +225,7 @@ def draw_graph_from_arrays(
     ax.set_title(title)
 
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size, linewidths=1.0, edgecolors="black")
-    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=font_size, ax=ax, font_color="darkorange")
+    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=font_size, ax=ax, font_color=node_txt_colour)
 
     nx.draw_networkx_edges(
         G, pos, ax=ax,
@@ -235,7 +237,7 @@ def draw_graph_from_arrays(
         min_source_margin=10, min_target_margin=10,
     )
 
-    if G.number_of_edges() > 0:
+    if G.number_of_edges() > 0 and draw_edge_labels:
         edge_labels = {(u, v): f"{d['prob']:.2f}" for u, v, d in G.edges(data=True)}
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=max(7, font_size-1), ax=ax)
 
@@ -246,7 +248,7 @@ def draw_graph_from_arrays(
         sm = ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
         cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label("Edge probability")
+        cbar.set_label("Edge probability", fontsize=18)
 
     plt.tight_layout()
     plt.show()
