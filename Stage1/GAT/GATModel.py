@@ -72,7 +72,7 @@ class GraphAttentionNetwork(nn.Module):
     def forward(
         self,
         x_sparse: torch.Tensor,        # (N_nodes, 96)          sparse
-        batch,
+        batch: torch.Tensor | None,    # Only None if input is the same graph
         A_edge_index: torch.Tensor,   # (2, nnz_A)             COO  (from A)
         A_edge_attr: torch.Tensor,    # (nnz_A, 197)           dense / sparse.mm
         E_edge_index: torch.Tensor,   # (2, N_E)               candidates
@@ -90,6 +90,9 @@ class GraphAttentionNetwork(nn.Module):
 
         if not A_attr_include:
             A_edge_emb = torch.zeros_like(A_edge_emb)
+
+        if batch is None:
+            batch = torch.zeros(x_dense.size(0), dtype=torch.long, device=x_dense.device)
 
         # 2) edge-aware GATv2 layers
         pe = x_dense[:,-18:]

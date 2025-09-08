@@ -223,7 +223,7 @@ def draw_graph_from_arrays(
     ax.set_title(title)
 
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size, linewidths=1.0, edgecolors="black")
-    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=font_size, ax=ax)
+    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=font_size, ax=ax, font_color="darkorange")
 
     nx.draw_networkx_edges(
         G, pos, ax=ax,
