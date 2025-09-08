@@ -200,7 +200,7 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
     title_txt_cands = [get_node_text(index2node[label]).strip() for label in title_order]
     title_xpath_cands = [tree.getpath(index2node[label]) for label in title_order]
 
-    # remove duplicates. This is needed as the same text chunk can be picked up under different ancestor nodes. Due to the nature of sorted_label_index ordering, the highest probability will be saved
+    # remove duplicates. This is needed as the same text chunk can be picked up under different ancestor nodes. Due to the nature of sorted_label_index ordering, the highest probability will be saved.
     deduped_label = []
     deduped_xpath = []
     deduped_txts = []
@@ -211,6 +211,7 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
 
     # seen maps an ordered text pair -> list of xpath pairs we've already accepted
     seen = {}
+    seenNodeTxt = {}
 
     for idx, (coord, xpath_pair, txt_pair, prob) in enumerate(zip(sorted_label_index, xpaths, txts, sorted_probs)):
         u_txt, v_txt = txt_pair
@@ -239,6 +240,28 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
                     if _is_ancestor_or_descendant(u_xpath, su) and _is_ancestor_or_descendant(v_xpath, sv):
                         already_seen = True
                         break
+
+        # Relabel already seen nodes
+        u_key = normalise_text(u_txt)
+        if u_key in seenNodeTxt:
+            for u_data in seenNodeTxt[u_key]:
+                if _is_ancestor_or_descendant(u_xpath, u_data["xpath"]):
+                    u_xpath = u_data["xpath"]  # relabel to canonical xpath
+                    coord = [u_data["label"], coord[1]]
+                    break
+        else:
+            seenNodeTxt.setdefault(u_key, []).append({"xpath": u_xpath, "label":coord[0]})
+
+        # Canonicalize v_txt/v_xpath
+        v_key = normalise_text(v_txt)
+        if v_key in seenNodeTxt:
+            for v_data in seenNodeTxt[v_key]:
+                if _is_ancestor_or_descendant(v_xpath, v_data["xpath"]):
+                    v_xpath = v_data["xpath"]  # relabel to canonical xpath
+                    coord = [coord[0], v_data["label"]]
+                    break
+        else:
+            seenNodeTxt.setdefault(v_key, []).append({"xpath": u_xpath, "label":coord[0]})
 
         # add to deduped
         if not already_seen:
@@ -286,17 +309,17 @@ if __name__ == "__main__":
     # state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-83-newtagsnotitle.pt", map_location=torch.device(device))
     # model = GraphAttentionNetwork(in_dim = 114, edge_in_dim = 200, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
     # state_dict = torch.load("./Stage1/GAT/FULLTRAINEDALLDATAModelf1-75-learning.pt", map_location=torch.device(device))
-    model = GraphAttentionNetwork(in_dim = 119, edge_in_dim = 210, edge_emb_dim = 32, hidden1 = 32, hidden2 = 32, hidden3 = 8, heads = 2)
-    state_dict = torch.load("./Stage1/GAT/LONG80EPOCH-75f1-newlabelnotitle.pt", map_location=torch.device(device))
+    model = GraphAttentionNetwork(in_dim = 119, pe_dim=11, edge_in_dim = 210, edge_emb_dim = 32, heads = 4)
+    state_dict = torch.load("/vol/bitbucket/mjh24/IAEA-thesis/TrueTransformer-newtagsnotitle.pt", map_location=torch.device(device))
     model.load_state_dict(state_dict, strict=False)
     model.to(device)
 
     # url = "C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\data\\swde\\sourceCode\\sourceCode\\movie\\movie\\movie-allmovie(2000)\\0000.htm"
     # url = r"https://www.nucnet.org/news/parliament-resolution-paves-way-for-establishing-nuclear-energy-legislation-6-4-2024"
-    url = "https://westinghousenuclear.com/"
+    # url = "https://westinghousenuclear.com/"
     # url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
     # url = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
-    # url = "https://www.nfl.com/teams/" # Great to show teams and structured data
+    url = "https://www.nfl.com/teams/" # Great to show teams and structured data
     # url = "https://www.energy.gov/ne/articles/advantages-and-challenges-nuclear-energy" #Great to show semi structured webpages with titles
     # url = "https://westinghousenuclear.com/nuclear-fuel/fuel-fabrication-operations/"
     # url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
