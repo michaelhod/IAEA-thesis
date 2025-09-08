@@ -1,6 +1,6 @@
 # %%
 import sys
-sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
 from Stage1.GAT.GATModel import GraphAttentionNetwork
 from Single_Website_Download.Download import main as downloadHTML
 import torch
@@ -29,13 +29,13 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
 
     # %%
     if len(alreadyConvertedToGraph) > 0:
-        X_sparse = sparse.load_npz(alreadyConvertedToGraph+"\\X.npz").tocsr()
+        X_sparse = sparse.load_npz(alreadyConvertedToGraph+"/X.npz").tocsr()
         X_npy = X_sparse.toarray()
-        E_sparse = sparse.load_npz(alreadyConvertedToGraph+"\\E.npz").tocsr()
+        E_sparse = sparse.load_npz(alreadyConvertedToGraph+"/E.npz").tocsr()
 
-        df = pd.read_csv(alreadyConvertedToGraph+"\\bbox.csv", index_col=0)
+        df = pd.read_csv(alreadyConvertedToGraph+"/bbox.csv", index_col=0)
         bbox = df.to_dict(orient="index")
-        edge_index = np.load(alreadyConvertedToGraph + "\\edge_index.npy")
+        edge_index = np.load(alreadyConvertedToGraph + "/edge_index.npy")
     else:
         driver_init(True)
         restart_Driver(True)
@@ -150,15 +150,24 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
 
     # %%
     model.eval()
-    logits = model(X, Aei, Aef, Lei, Lef)
+    logits, title_logits = model(X, None, Aei, Aef, Lei, Lef, return_title=True)
     probs  = torch.sigmoid(logits)
+    title_probs = torch.sigmoid(title_logits)
 
     # %%
     order = np.argsort(probs.squeeze().tolist())[::-1]
     probs = probs.squeeze().detach().cpu().numpy()
+    title_order = np.argsort(title_probs.squeeze().tolist())[::-1]
+    title_probs = title_probs.squeeze().detach().cpu().numpy()
 
     sorted_label_index = label_index[order]
     sorted_probs = probs[order]
+    title_probs = title_probs[title_order]
+
+    # Remove all title probs and labels that do not appear in the edges
+    mask = np.isin(title_order, label_index)
+    title_order = title_order[mask]
+    title_probs = title_probs[mask]
 
     # Build a mapping from tuple to its position for fast lookup
     pair_to_pos = {tuple(pair): idx for idx, pair in enumerate(sorted_label_index)}
@@ -188,6 +197,8 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
     for label in sorted_label_index:
         txts.append([get_node_text(index2node[label[0]]).strip(), get_node_text(index2node[label[1]]).strip()])
         xpaths.append([tree.getpath(index2node[label[0]]), tree.getpath(index2node[label[1]])])
+    title_txt_cands = [get_node_text(index2node[label]).strip() for label in title_order]
+    title_xpath_cands = [tree.getpath(index2node[label]) for label in title_order]
 
     # remove duplicates. This is needed as the same text chunk can be picked up under different ancestor nodes. Due to the nature of sorted_label_index ordering, the highest probability will be saved
     deduped_label = []
@@ -237,7 +248,7 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
             deduped_probs.append(prob)
             seen.setdefault(pair, []).append((u_xpath, v_xpath))
 
-    return deduped_label, deduped_xpath, deduped_txts, deduped_probs
+    return deduped_label, deduped_xpath, deduped_txts, deduped_probs, title_order, title_txt_cands, title_xpath_cands, title_probs
 
 def keepTopKMask(arr, k: int):
     """arr is shape (K,2), ordered. It keeps the first k instances of each individual instance"""
@@ -282,14 +293,14 @@ if __name__ == "__main__":
 
     # url = "C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\data\\swde\\sourceCode\\sourceCode\\movie\\movie\\movie-allmovie(2000)\\0000.htm"
     # url = r"https://www.nucnet.org/news/parliament-resolution-paves-way-for-establishing-nuclear-energy-legislation-6-4-2024"
-    # url = "https://westinghousenuclear.com/"
+    url = "https://westinghousenuclear.com/"
     # url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
     # url = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
-    url = "https://www.nfl.com/teams/" # Great to show teams and structured data
+    # url = "https://www.nfl.com/teams/" # Great to show teams and structured data
     # url = "https://www.energy.gov/ne/articles/advantages-and-challenges-nuclear-energy" #Great to show semi structured webpages with titles
     # url = "https://westinghousenuclear.com/nuclear-fuel/fuel-fabrication-operations/"
     # url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
-    htmlFile = Path("C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis/data/websites/test.html")
+    htmlFile = Path("/vol/bitbucket/mjh24/IAEA-thesis/data/websites/test.html")
     downloadHTML(url,1,htmlFile)
 
     sorted_label_index, xpaths, txts, probs = main(htmlFile, model, remove_dupes=False)
