@@ -261,7 +261,7 @@ def main(htmlFilePath, model, safeurl="", specific_node_txt=[], alreadyConverted
                     coord = [coord[0], v_data["label"]]
                     break
         else:
-            seenNodeTxt.setdefault(v_key, []).append({"xpath": u_xpath, "label":coord[0]})
+            seenNodeTxt.setdefault(v_key, []).append({"xpath": v_xpath, "label":coord[1]})
 
         # add to deduped
         if not already_seen:
@@ -320,6 +320,7 @@ if __name__ == "__main__":
     # url = "https://www.football.co.uk/news/leeds-vs-bournemouth-premier-league-team-news-lineups-prediction/781112/"
     # url = r"https://www.bbc.co.uk/news/live/cev28rvzlv1t"
     url = "https://www.nfl.com/teams/" # Great to show teams and structured data
+    url = r"https://www.bbc.co.uk/news/articles/cpq5dl5y4nlo"
     # url = "https://www.energy.gov/ne/articles/advantages-and-challenges-nuclear-energy" #Great to show semi structured webpages with titles
     # url = "https://westinghousenuclear.com/nuclear-fuel/fuel-fabrication-operations/"
     # url = "https://www.livescore.com/en/football/england/premier-league/bournemouth-vs-leicester-city/1250940/lineups/"
