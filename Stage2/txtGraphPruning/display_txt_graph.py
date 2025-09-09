@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable, get_cmap
+import matplotlib.colors as mcolors
 
 
 def _truncate(text: str, head: int = 10, tail: int = 10) -> str:
@@ -216,20 +217,20 @@ def draw_graph_from_arrays(
             vmin, vmax = vmin - 1e-9, vmax + 1e-9
 
     norm = Normalize(vmin=vmin, vmax=vmax)
-    cmap = get_cmap(edge_cmap)
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom", ["#dddddd", "#1f78b4"])
     edge_colors = [cmap(norm(G.edges[e]["prob"])) for e in G.edges()]
     widths = (min_edge_width + (max_edge_width - min_edge_width) * norm(edge_probs)) if len(edge_probs) else []
 
     # ---- Draw ----
     fig, ax = plt.subplots(figsize=figsize)
-    ax.set_title(title)
+    ax.set_title(title, fontsize=20)
 
-    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size, linewidths=1.0, edgecolors="black")
-    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=font_size, ax=ax, font_color=node_txt_colour)
+    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size, linewidths=0.0, node_color="darkgrey", alpha=0.8)
+    nx.draw_networkx_labels(G, pos, labels={n: G.nodes[n]["label"] for n in G.nodes()}, font_size=font_size, ax=ax, font_color=node_txt_colour, font_weight="bold")
 
     nx.draw_networkx_edges(
         G, pos, ax=ax,
-        arrows=True,
+        arrows=False,
         width=list(widths) if len(edge_probs) else 1.0,
         edge_color=edge_colors if len(edge_probs) else "k",
         arrowsize=arrow_size,
@@ -247,7 +248,7 @@ def draw_graph_from_arrays(
     if show_colorbar and G.number_of_edges() > 0:
         sm = ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
-        cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+        cbar = plt.colorbar(sm, ax=ax, fraction=0.026, )
         cbar.set_label("Edge probability", fontsize=18)
 
     plt.tight_layout()

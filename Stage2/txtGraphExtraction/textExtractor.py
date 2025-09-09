@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
 from Stage1.tree_helpers import *
 
 BLOCKS = {'p','li','dt','dd','blockquote','pre','h1','h2','h3','h4','h5','h6','figcaption'}
@@ -236,6 +236,7 @@ def extract_chunk_xpaths(html_path, safeurl="", include_text=False):
 # --- example usage ---------------------------------------------------------
 if __name__ == "__main__":
     path = "C:\\Users\\micha\\Documents\\Imperial Courses\\Thesis\\IAEA-thesis\\data\\swde\\sourceCode\\sourceCode\\movie\\movie\\movie-allmovie(2000)\\0000.htm"
+    path = "/vol/bitbucket/mjh24/IAEA-thesis/data/websites/test.html"
     xps = extract_chunk_xpaths(path, include_text=True)
     for item in xps:
         print(item['type'].ljust(6), item['xpath'], "=>", item['text'][:90])
