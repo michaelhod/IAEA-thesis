@@ -18,12 +18,68 @@ def louvain_clustering(edges, weights, resolution=1.0):
         clusters[cid].append(node)
     return list(clusters.values())
 
-def leiden_clustering(edges, weights):
+def leiden_clustering(edges, weights, return_fitness=False):
     G = _build_graph(edges, weights)
     coms = algorithms.leiden(G, weights="weight")
     clusters = [list(c) for c in coms.communities]
-    print(coms.newman_girvan_modularity())
-    return clusters
+    return (clusters, coms.newman_girvan_modularity()) if return_fitness else clusters
+
+def _count_cluster_words(cluster, node_meta):
+    count = 0
+    for n in cluster:
+        t = ", ".join(node_meta[n]["texts"])
+        count += len(t.split())
+    return count
+
+def iterative_leiden(edges, weights, node_meta, max_words=30, max_iters=20):
+    """
+    Iteratively run Leiden until all clusters are smaller
+    than `max_words` or until no further splitting is possible.
+    """
+    clusters = leiden_clustering(edges, weights)
+    all_clusters = clusters[:]
+
+    for _ in range(max_iters):
+        new_clusters = []
+        changed = False
+
+        for cluster in all_clusters:
+            word_count = _count_cluster_words(cluster, node_meta)
+
+            if word_count > max_words and len(cluster) > 1:
+                sub_edges, sub_weights = _subset_graph(cluster, edges, weights)
+                subclusters = leiden_clustering(sub_edges, sub_weights)
+
+                # --- SAFEGUARD: if Leiden can't split, keep as-is ---
+                if len(subclusters) == 1 or subclusters == [cluster]:
+                    new_clusters.append(cluster)
+                else:
+                    new_clusters.extend(subclusters)
+                    changed = True
+            else:
+                new_clusters.append(cluster)
+
+        all_clusters = new_clusters
+
+        # stop early if nothing changed
+        if not changed:
+            break
+
+    return all_clusters
+
+
+def _subset_graph(cluster, edges, weights):
+    """
+    Restrict edges/weights to only nodes in the given cluster.
+    """
+    cluster_set = set(cluster)
+    sub_edges, sub_weights = [], []
+    for e, w in zip(edges, weights):
+        if e[0] in cluster_set and e[1] in cluster_set:
+            sub_edges.append(e)
+            sub_weights.append(w)
+    return sub_edges, sub_weights
+
 
 def mini_graphs_from_clusters(edges, weights, clusters):
     """

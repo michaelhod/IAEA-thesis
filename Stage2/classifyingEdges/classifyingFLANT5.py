@@ -350,12 +350,44 @@ COMBINED:"""
 
 def summarise_cluster(clusters, batch_size=64, device=None):
     """Takes a list of edges. The first is the node to summarise, the second the context. Splits the summary into sentences"""
-    prompt="""TASK:
-Facts are a declarative, verifiable claim with a concrete subject and predicate that can be true or false.
+    prompt="""Instruction:
 The different INPUTS are related to each other.
 Group the similar INPUTS together to create a list of facts.
-Output the list of facts.
-Output around {N} facts."""# Within each fact, NEVER use pronouns (e.g., him, these, it).
+Output the relations and the list of facts.
+Add no external information.
+
+Example:
+
+INPUTS:
+- Doctor
+- Address
+- 43 Palace Gardens, Newcastle
+- The date is 1968
+- Alexander Evans
+- March
+
+OUTPUT (4 facts):
+1. The Doctor is Alexander Evans.
+2. The Address is 43 Palace Gardens, Newcastle.
+3. The date is March, 1968.
+
+INPUTS:
+- Challenging
+- Thoughts:
+- Rewarding
+- Acceptable
+
+OUTPUT (3 facts):
+1. The Thought is Challenging.
+2. Thoughts: Rewarding.
+3. Thoughts: Acceptable.
+
+Now do the same for the following INPUTS:
+
+INPUTS:
+- {INPUTS}
+OUTPUT (~{N} facts):
+"""# Within each fact, NEVER use pronouns (e.g., him, these, it).
     
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()
@@ -371,7 +403,7 @@ Output around {N} facts."""# Within each fact, NEVER use pronouns (e.g., him, th
     for i in range(0, len(clusters), batch_size):
         batch = clusters[i:i+batch_size]
 
-        prompts = [prompt.format(N=len(cluster)/2) + f"\n\nINPUT: " + "\nINPUT: ".join(cluster) + "FACTS: " for cluster in batch]
+        prompts = [prompt.format(N=len(cluster)/2, INPUTS="\n- ".join(cluster)) for cluster in batch]
 
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
@@ -643,9 +675,10 @@ if __name__ == "__main__":
  ['Andoni IraolaRuud van Nistelrooy', 'S. MavididiMuscle injury'],
  ['Andoni IraolaRuud van Nistelrooy', 'H. SouttarAchilles tendon injury'],
  ['Andoni IraolaRuud van Nistelrooy', 'A. FatawuACL knee injury']]
-    sample_pairs = [['Is related to:', 'Work Rating', "The Son's Room 2001, Nanni Moretti", 'The Bed You Sleep In 1993, Jon Jost', 'The Pledge 2001, Sean Penn', 'Family Viewing 1987, Atom Egoyan', 'In the Bedroom 2001, Todd Field', 
+    sample_pairs = [['Family Viewing 1987, Atom Egoyan', 'In the Bedroom 2001, Todd Field', 
                      #"Atom Egoyan's haunting adaptation of the Russell Banks novel The Sweet Hereafter was the Canadian filmmaker's most successful film to date, taking home a Special Grand Jury Prize at the 1997 Cannes Film Festival and scoring a pair of Academy Award nominations, including Best Director. Restructured to fit Egoyan's signature mosaic narrative style, the story concerns the cultural aftershocks which tear apart a small British Columbia town in the wake of a school-bus accident which leaves a number of local children dead. Ian Holm stars as Mitchell Stephens, a big-city lawyer who arrives in the interest of uniting the survivors to initiate a lawsuit his maneuvering only drives the community further apart, reopening old wounds and jeopardizing any hopes of emotional recovery. Like so many of Egoyan's features, The Sweet Hereafter is a serious and painfully honest exploration of family grief no character is immune from the sense of utter devastation which grips the film, not even the attorney, whose interests are in part motivated by his own remorse over the fate of his daughter, an HIV-positive drug addict.", 
-                     'The Five Senses 1999, Jeremy Podeswa', 'The Ice Storm 1997, Ang Lee', 'Blue 1993, Krzysztof Kieslowski', "L'Humanit 1999, Bruno Dumont", 'Eureka 2000, Shinji Aoyama', 'Corrections to this Entry', 'Similar Works', 'Director', 'Atom Egoyan', 'Other Related Works', 'The War Zone 1999, Tim Roth', 'by Jason Ankeny', 'Plot Synopsis']]
+                     #'The Five Senses 1999, Jeremy Podeswa', 'The Ice Storm 1997, Ang Lee', 'Blue 1993, Krzysztof Kieslowski', "L'Humanit 1999, Bruno Dumont", 'Eureka 2000, Shinji Aoyama', 'Corrections to this Entry', 'Similar Works', 'Is related to:', 'Work Rating', "The Son's Room 2001, Nanni Moretti", 'The Bed You Sleep In 1993, Jon Jost', 'The Pledge 2001, Sean Penn', 
+                     'Director', 'Atom Egoyan', 'Other Related Works', 'The War Zone 1999, Tim Roth', 'by Jason Ankeny', 'Plot Synopsis']]
     import numpy as np
     # sample_pairs = [["The knight layed down his sword", "for a prince"],
     #                 ["The strongest man in the kingdom", "a beggar's boy"],
