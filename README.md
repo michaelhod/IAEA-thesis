@@ -63,7 +63,7 @@ This outputs a set of facts + XPaths at the bottom of the notebook
 
 ## 📖 Thesis
 
-Full details, methods, and evaluation can be found in the [Final Report](./Final_Report.pdf).
+Full details, methods, and evaluation can be found in the [Final Report](./Final%20Report.pdf).
 
 ---
 
