@@ -13,9 +13,9 @@ from scipy import sparse
 import pandas as pd
 import random
 
-def load_json_of_swde_file(htmlFilepath: str, relativepth=None):
+def load_json_of_swde_file(htmlFilepath: str):
     htmlFilepath = htmlFilepath.split("/") if "/" in htmlFilepath else htmlFilepath.split("\\")
-    jsonFilepath = f"{relativepth}/data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json" if relativepth else f"./data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json"
+    jsonFilepath = f"./data/swde_expanded_dataset/dataset/{htmlFilepath[-3]}/{htmlFilepath[-2]}.json"
     with open(jsonFilepath, "r", encoding="utf-8") as fp:
         return json.load(fp)
 
@@ -156,6 +156,17 @@ def _closest_for_pair(tree: etree._ElementTree, left: str, right: str):
                     return f"found the same tag for: {left} | {right}"
 
     return (bfs_indices[best_pair[0]], bfs_indices[best_pair[1]])
+
+def _get_title(tree, titletxt):
+    _, depth_map = build_parent_and_depth_maps(tree)
+    bfs_indices, _ = bfs_index_map(tree)
+    
+    nodes_right = _find_matches(tree, titletxt, depth_map)
+    nodes_right = set(_find_exact_matches(nodes_right, titletxt))
+    for el in tree.iter():                # document order (finds first occurance in document)
+        if el in nodes_right:
+            return bfs_indices[el]
+    return -1 
 
 def connectparents(tree, i, j):
     nodeToindex, indexTonode = bfs_index_map(tree)
@@ -300,6 +311,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
         verify_A_size(treeSize, dataPath  / "A.npz")
     
     htmlName = htmlFile.name
+    titleNodeIdx = np.array([_get_title(tree, titletxt) for left, titletxt in iterate_pairs(jsonContent, htmlName) if left=="topic_entity_name"])
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
     tempcoords = [pair for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int) for pair in ((coord[0], coord[1]),(coord[1], coord[0]))]
     coords = []
@@ -312,34 +324,38 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
 
     if displayLabels:
         _display_labels(tree, label_index[:len(coords)])
+        _, idx2Node = bfs_index_map(tree)
+        print("Title node: ", [tree.getpath(idx2Node[idx]) for idx in titleNodeIdx])
     if displaynegativeLabels:
         _display_labels(tree, label_index[len(coords):])
 
     if save:
-        _save_coords_to_npz(label_index, label_features, label_value, dataPath)
+        _save_coords_to_npz(label_index, label_features, label_value, titleNodeIdx, dataPath)
 
-    return results, label_index, label_features, label_value
+    return results, label_index, label_features, label_value, titleNodeIdx
 
-def _save_coords_to_npz(label_index, label_features, label_value, dataPath: Path):
+def _save_coords_to_npz(label_index, label_features, label_value, titleNodeIdx, dataPath: Path):
     if len(label_index) == 0:
         raise ValueError("nothing to save – no valid (int, int) pairs found")
-    
+    if titleNodeIdx[0] == -1:
+        print("No title found")
+
     label_features = sparse.csr_matrix(label_features)
     sparse.save_npz(dataPath / "labels.npz", label_features, compressed=True)
     np.save(dataPath / "label_index.npy", label_index)
     np.save(dataPath / "label_value.npy", label_value)
+    np.save(dataPath / "titleIdx.npy", titleNodeIdx)
 
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("movie/movie/movie-allmovie(2000)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-allmovie(2000).json"
+    TARGETFOLDER = Path("university/university/university-matchcollege(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/university/university/university-matchcollege(2000).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
-    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[0].with_suffix("").name
+    dataPath = ANCHORGRAPHS / TARGETFOLDER / html_files[135].with_suffix("").name
 
-    jsonContent = load_json_of_swde_file(str(html_files[0]))
+    jsonContent = load_json_of_swde_file(str(html_files[135]))
 
-    label_extraction(html_files[0], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)
-
+    label_extraction(html_files[135], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)

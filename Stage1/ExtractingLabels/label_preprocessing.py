@@ -34,7 +34,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path, jsonAnswers=None) -> str 
         jsonAnswers = load_json_of_swde_file(str(filepath))
 
     try:   
-        results, _, _, _ = label_extraction(filepath, jsonAnswers, out_dir, save=True, verifyTreeAgainstFile=True)
+        results, _, _, _, _ = label_extraction(filepath, jsonAnswers, out_dir, save=True, verifyTreeAgainstFile=True)
 
         for result in results:
             if isinstance(result, str):
