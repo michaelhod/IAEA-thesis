@@ -17,7 +17,7 @@ def saveHTML(filepath, html):
         f.write(html)
 
 def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, parentMap, depthMap, XPaths):
-    features = [0]*(2*len(TAGSOFINTEREST)+10)
+    features = [0]*(2*len(TAGSOFINTEREST)+13)
 
     # Copy all X features for each node
     for i in range(len(TAGSOFINTEREST)+1):
@@ -25,8 +25,37 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, paren
     for i in range(len(TAGSOFINTEREST)+1):
         features[i+len(TAGSOFINTEREST)+1] = X[edgeEnd, i]
     # Num hops between nodes
-    features[-8] = np.log1p(compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap))
+    features[-11] = np.log1p(compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap))
     
+    # --- Compute LCA depth and distances ---
+    def get_ancestors(node):
+        ancestors = []
+        while node in parentMap:
+            ancestors.append(node)
+            node = parentMap[node]
+        ancestors.append(node)  # root
+        return ancestors
+
+    start_ancs = get_ancestors(edgeStartNode)
+    end_ancs = get_ancestors(edgeEndNode)
+
+    # Find LCA
+    start_set = set(start_ancs)
+    lca = None
+    for anc in end_ancs:
+        if anc in start_set:
+            lca = anc
+            break
+
+    lca_depth = depthMap[lca] if lca is not None else 0
+    dist_start_to_lca = depthMap[edgeStartNode] - lca_depth
+    dist_end_to_lca = depthMap[edgeEndNode] - lca_depth
+
+    max_depth = max(depthMap.values()) if len(depthMap) > 0 else 1
+    features[-10] = lca_depth / max_depth
+    features[-9]  = dist_start_to_lca / max_depth
+    features[-8]  = dist_end_to_lca / max_depth
+
     # Distances between nodes
     edgeEndXPath = XPaths[edgeEndNode]
     edgeStartXPath = XPaths[edgeStartNode]
