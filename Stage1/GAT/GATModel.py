@@ -8,14 +8,6 @@ class GraphAttentionNetwork(nn.Module):
     """
     HTML‑graph model
 
-        X  ─╮
-            │  GAT( 96 → 64 )
-            │  ReLU
-            │  GAT( 64 → 32 )
-            │  ReLU
-            └─ Edge‑feature constructor
-                      [h_i ‖ h_j ‖ φ(e_ij)] ─► MLP(69 → 1)
-
     Parameters
     ----------
     in_dim          : node‑feature size   (= 96)

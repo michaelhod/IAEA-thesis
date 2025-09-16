@@ -39,9 +39,9 @@ def clean_instructional_text(pairs, batch_size=32, max_new_tokens=2, device=None
     for i in range(0, len(texts), batch_size):
         batch_texts = texts[i:i+batch_size]
         prompts = [f"""Decide if the text looks like an website button or navigation label.
-Return 1 for button/navigation, or 0 otherwise. Output only a single digit.
+Return 1 for button/navigation, or 0 otherwise.
 
-Examples of 1: "Read more", "Learn more", "Explore", "Get started", "Try free", "Watch video",
+Examples of 1: "Read more", "Learn more", "Explore", "Get started", "More info", "Try free", "Watch video",
 "Sign in", "Sign up", "My account", "Download", "Contact", "Home", "About", "Privacy Policy",
 "Terms", "Fr/En", "Menu", "Next", "Previous", "Back", "Dashboard", "Add to cart".
 

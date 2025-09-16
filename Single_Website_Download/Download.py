@@ -33,7 +33,14 @@ def parse() -> tuple[str, int]:
 
 def download(url: str) -> str:
     """Return the HTML of *url* as a Unicode string."""
-    resp = requests.get(url, timeout=15)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/140.0.0.0 Safari/537.36"
+        )
+    }
+    resp = requests.get(url, headers=headers, timeout=15)
     resp.raise_for_status()
     return resp.text
 
