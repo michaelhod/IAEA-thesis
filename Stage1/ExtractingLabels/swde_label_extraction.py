@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
 import json
 from pathlib import Path
 from typing import Dict
