@@ -166,7 +166,7 @@ def _get_title(tree, titletxt):
     for el in tree.iter():                # document order (finds first occurance in document)
         if el in nodes_right:
             return bfs_indices[el]
-    return None
+    return -1 
 
 def connectparents(tree, i, j):
     nodeToindex, indexTonode = bfs_index_map(tree)

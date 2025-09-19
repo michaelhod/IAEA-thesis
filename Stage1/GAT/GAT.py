@@ -502,7 +502,7 @@ def train_model(model,
 
     print(model)
 
-    model_path = "./model_in_traininglowdropout.pt"
+    model_path = "./model_in_traininglowdropout-8layers.pt"
     if os.path.exists(model_path) and load_checkpoint:
         print("loading existing model...")
         model.load_state_dict(torch.load(model_path))
@@ -557,7 +557,7 @@ def train_model(model,
                 train_loss,
                 val_loss,
                 precision,recall,f1score,
-                "TrueTransformer-newedgeslowdropout",
+                "TrueTransformer-newedgeslowdropout-8layers",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -613,7 +613,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 # %%
 #Save model
-torch.save(model.state_dict(), "TrueTransformer-neweedgeslowdropout.pt")
+torch.save(model.state_dict(), "TrueTransformer-neweedgeslowdropout-8layers.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
