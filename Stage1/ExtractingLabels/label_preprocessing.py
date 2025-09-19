@@ -54,7 +54,7 @@ def process_file(filepath: Path, SRC: Path, OUT: Path, jsonAnswers=None) -> str 
 # ── main ────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     for src, out in zip([SRC_FOLDER1, SRC_FOLDER2, SRC_FOLDER3],[OUT_ROOT1, OUT_ROOT2, OUT_ROOT3]):
-        html_files = list(src.rglob("*.htm"))
+        html_files = sorted(list(src.rglob("*.htm")))
         batchsize = len(html_files)
         workers = 8
         for i in range(0, len(html_files), batchsize):

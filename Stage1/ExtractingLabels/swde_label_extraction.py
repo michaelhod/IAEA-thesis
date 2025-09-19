@@ -166,7 +166,7 @@ def _get_title(tree, titletxt):
     for el in tree.iter():                # document order (finds first occurance in document)
         if el in nodes_right:
             return bfs_indices[el]
-    return -1 
+    return None
 
 def connectparents(tree, i, j):
     nodeToindex, indexTonode = bfs_index_map(tree)
@@ -312,6 +312,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
     
     htmlName = htmlFile.name
     titleNodeIdx = np.array([_get_title(tree, titletxt) for left, titletxt in iterate_pairs(jsonContent, htmlName) if left=="topic_entity_name"])
+    if len(titleNodeIdx) == 0: titleNodeIdx = np.array([-1]) # if topic_entity_name does not exist
     results = [_closest_for_pair(tree, left, right) for left, right in iterate_pairs(jsonContent, htmlName)]
     tempcoords = [pair for coord in results if coord and isinstance(coord[0], int) and isinstance(coord[1], int) for pair in ((coord[0], coord[1]),(coord[1], coord[0]))]
     coords = []
@@ -325,7 +326,7 @@ def label_extraction(htmlFile: Path, jsonContent, dataPath:Path, save=False, ver
     if displayLabels:
         _display_labels(tree, label_index[:len(coords)])
         _, idx2Node = bfs_index_map(tree)
-        print("Title node: ", [tree.getpath(idx2Node[idx]) for idx in titleNodeIdx])
+        print("Title node: ", [tree.getpath(idx2Node[idx]) for idx in titleNodeIdx if idx>0])
     if displaynegativeLabels:
         _display_labels(tree, label_index[len(coords):])
 
@@ -349,8 +350,8 @@ def _save_coords_to_npz(label_index, label_features, label_value, titleNodeIdx, 
 if __name__ == "__main__":
     ANCHORHTML = Path("./data/swde/sourceCode/sourceCode")
     ANCHORGRAPHS = Path("./data/swde_HTMLgraphs")
-    TARGETFOLDER = Path("university/university/university-matchcollege(2000)")
-    JSONFILE = "./data/swde_expanded_dataset/dataset/university/university/university-matchcollege(2000).json"
+    TARGETFOLDER = Path("movie/movie/movie-amctv(2000)")
+    JSONFILE = "./data/swde_expanded_dataset/dataset/movie/movie/movie-amctv(2000).json"
 
     htmlFolder = ANCHORHTML / TARGETFOLDER
     html_files = list(htmlFolder.rglob("*.htm"))
@@ -358,4 +359,4 @@ if __name__ == "__main__":
 
     jsonContent = load_json_of_swde_file(str(html_files[135]))
 
-    label_extraction(html_files[135], jsonContent, dataPath, save=False, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)
+    label_extraction(html_files[135], jsonContent, dataPath, save=True, verifyTreeAgainstFile=True, displayLabels=True, displaynegativeLabels=False)

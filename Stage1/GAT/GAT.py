@@ -1,6 +1,6 @@
 # %%
 import sys
-sys.path.insert(1, r"C:/Users/micha/Documents/Imperial Courses/Thesis/IAEA-thesis")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
 import numpy as np
 import torch
 import torch.nn as nn
@@ -22,7 +22,7 @@ from Stage1.GAT.GATModel import GraphAttentionNetwork
 if torch.cuda.is_available():
     torch.cuda.current_device()
 
-datafile = "/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs_newtags.tar"
+datafile = "/vol/bitbucket/mjh24/IAEA-thesis/data/swde_HTMLgraphs_newedges.tar"
 
 plt.ion()
 
@@ -131,7 +131,7 @@ class TarGraphDataset(Dataset):
         get = lambda name: self.tar.extractfile(files[name]).read()
         
         fileinfo = gid
-
+        
         X   = self._npz_to_csr(get("X.npz"),       dtype=torch.float32)
         Aef = self._npz_to_csr(get("E.npz"),       dtype=torch.float32)
         Lef = self._npz_to_csr(get("labels.npz"),  dtype=torch.float32)
@@ -502,7 +502,7 @@ def train_model(model,
 
     print(model)
 
-    model_path = "./TrueTransformer-newtagsnotitle-aucloss.pt"
+    model_path = "./model_in_traininglowdropout.pt"
     if os.path.exists(model_path) and load_checkpoint:
         print("loading existing model...")
         model.load_state_dict(torch.load(model_path))
@@ -510,16 +510,16 @@ def train_model(model,
     model.to(device)
     
     opt   = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched = lr_scheduler.OneCycleLR(opt, max_lr=8e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
-                   pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e3, cycle_momentum=False)
+    sched = lr_scheduler.OneCycleLR(opt, max_lr=1e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
+                   pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
                         #StepLR(opt, step_size=3, gamma=0.9)
-    # criterion = focal_loss
-    criterion = PairwiseAUCFocalLoss(
-                gamma=2.0,
-                alpha=0.25,
-                lambda_focal=0.9,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
-                sample_k=5096     # speeds up training; set None for exact loss
-            )
+    criterion = focal_loss
+    # criterion = PairwiseAUCFocalLoss(
+    #             gamma=2.0,
+    #             alpha=0.25,
+    #             lambda_focal=0.9,  # 0 ⇒ pure ranking loss; 1 ⇒ equal weight
+    #             sample_k=None     # speeds up training; set None for exact loss
+    #         )
     #criterion = nn.BCEWithLogitsLoss()
 
     best_f1, fig_ax, best_state = 0.0, None, None
@@ -527,8 +527,8 @@ def train_model(model,
 
     for epoch in range(1, num_epochs + 1):
         lambda_title = 0.02 if epoch > 2 else 0
-        p_Lef_drop = 0#.3 - 0.3 * (epoch-2)/(num_epochs-2 + 1e-9)        
-        use_E_attr,  use_A_attr = (epoch>0), (epoch>0)
+        p_Lef_drop = 0.2 - 0.3 * (epoch-2)/(num_epochs-2 + 1e-9)        
+        use_E_attr,  use_A_attr = (epoch>2), (epoch>0)
 
         loss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
         train_loss.append(loss)
@@ -557,7 +557,7 @@ def train_model(model,
                 train_loss,
                 val_loss,
                 precision,recall,f1score,
-                "TrueTransformer-newtagsnotitle-aucloss",
+                "TrueTransformer-newedgeslowdropout",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -598,22 +598,22 @@ val_ds   = Subset(dataset, val_idx)
 train_loader = make_loader(train_ds, batch_size=512, shuffle=True)
 val_loader = make_loader(val_ds, batch_size=256, shuffle=True)
 
-model = GraphAttentionNetwork(in_dim = 119, pe_dim=11, edge_in_dim = 210, edge_emb_dim = 32, heads = 4)#16,32,4 was the winner
+model = GraphAttentionNetwork(in_dim = 119, pe_dim=11, edge_in_dim = 214, edge_emb_dim = 32, heads = 4)#16,32,4 was the winner
 
 load_checkpoint = False
 _, trainloss, valloss, fig_ax = train_model(model,
             train_loader,
             val_loader,
             load_checkpoint,
-            num_epochs     = 250,
-            lr             = 8e-4,
+            num_epochs     = 299,
+            lr             = 1e-3,
             validate_every = 1,
             patience       = 1,
             device         = "cuda")
 
 # %%
 #Save model
-torch.save(model.state_dict(), "TrueTransformer-newtagsnotitle-aucloss.pt")
+torch.save(model.state_dict(), "TrueTransformer-neweedgeslowdropout.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
@@ -632,5 +632,3 @@ torch.save(model.state_dict(), "TrueTransformer-newtagsnotitle-aucloss.pt")
 
 #32 32 layers
 #Just train everything from the start
-
-

@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis/Stage1/ExtractingGraphs/tagsOfInterest.json")
+sys.path.insert(1, r"/vol/bitbucket/mjh24/IAEA-thesis")
 import numpy as np
 from Stage1.ExtractingGraphs.seleniumFunctions import get_bbox, get_selenium_html, open_selenium
 import json
@@ -17,7 +17,7 @@ def saveHTML(filepath, html):
         f.write(html)
 
 def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, parentMap, depthMap, XPaths):
-    features = [0]*(2*len(TAGSOFINTEREST)+13)
+    features = [0]*(2*len(TAGSOFINTEREST)+14)
 
     # Copy all X features for each node
     for i in range(len(TAGSOFINTEREST)+1):
@@ -25,7 +25,7 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, paren
     for i in range(len(TAGSOFINTEREST)+1):
         features[i+len(TAGSOFINTEREST)+1] = X[edgeEnd, i]
     # Num hops between nodes
-    features[-11] = np.log1p(compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap))
+    features[-12] = np.log1p(compute_hops(edgeStartNode, edgeEndNode, parentMap, depthMap))
     
     # --- Compute LCA depth and distances ---
     def get_ancestors(node):
@@ -52,9 +52,10 @@ def EdgeFeatures(edgeStart, edgeEnd, edgeStartNode, edgeEndNode, X, bboxs, paren
     dist_end_to_lca = depthMap[edgeEndNode] - lca_depth
 
     max_depth = max(depthMap.values()) if len(depthMap) > 0 else 1
-    features[-10] = lca_depth / max_depth
-    features[-9]  = dist_start_to_lca / max_depth
-    features[-8]  = dist_end_to_lca / max_depth
+    features[-11] = lca_depth/max_depth
+    features[-10] = np.log1p(dist_start_to_lca)
+    features[-9]  = np.log1p(dist_end_to_lca)
+    features[-8]  = np.log1p(abs(dist_end_to_lca - dist_start_to_lca))
 
     # Distances between nodes
     edgeEndXPath = XPaths[edgeEndNode]
