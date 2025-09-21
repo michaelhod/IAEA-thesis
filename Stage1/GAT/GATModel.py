@@ -27,7 +27,7 @@ class GraphAttentionNetwork(nn.Module):
 
         self.convs = nn.ModuleList()
         channels = in_dim - (18-pe_dim)
-        for _ in range(8):
+        for _ in range(6):
             seq = nn.Sequential(
                 nn.Linear(channels, channels),
                 nn.ReLU(),

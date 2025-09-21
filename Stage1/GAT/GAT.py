@@ -502,7 +502,7 @@ def train_model(model,
 
     print(model)
 
-    model_path = "./model_in_traininglowdropout-8layers.pt"
+    model_path = "./model_in_traininghighdroout.pt"
     if os.path.exists(model_path) and load_checkpoint:
         print("loading existing model...")
         model.load_state_dict(torch.load(model_path))
@@ -510,7 +510,7 @@ def train_model(model,
     model.to(device)
     
     opt   = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched = lr_scheduler.OneCycleLR(opt, max_lr=1e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
+    sched = lr_scheduler.OneCycleLR(opt, max_lr=4e-4, epochs=num_epochs, steps_per_epoch=len(train_loader),
                    pct_start=0.1, anneal_strategy='cos', div_factor=25, final_div_factor=1e4, cycle_momentum=False)
                         #StepLR(opt, step_size=3, gamma=0.9)
     criterion = focal_loss
@@ -526,9 +526,9 @@ def train_model(model,
     train_loss, val_loss, precision, recall, f1score = [], [], [], [], []
 
     for epoch in range(1, num_epochs + 1):
-        lambda_title = 0.02 if epoch > 2 else 0
-        p_Lef_drop = 0.2 - 0.3 * (epoch-2)/(num_epochs-2 + 1e-9)        
-        use_E_attr,  use_A_attr = (epoch>2), (epoch>0)
+        lambda_title = 0.02 if epoch > 0 else 0
+        p_Lef_drop = 0.9 - 0.7 * (epoch-0)/(num_epochs-0 + 1e-9)        
+        use_E_attr,  use_A_attr = (epoch>0), (epoch>0)
 
         loss = train_epoch(model, train_loader, opt, criterion, sched, epoch, num_epochs, device=device, use_E_attr=use_E_attr, use_A_attr = use_A_attr, p_Lef_drop = p_Lef_drop, lambda_title=lambda_title)
         train_loss.append(loss)
@@ -557,7 +557,7 @@ def train_model(model,
                 train_loss,
                 val_loss,
                 precision,recall,f1score,
-                "TrueTransformer-newedgeslowdropout-8layers",
+                "TrueTransformer-newedgeshighdroout",
                 xlabel="Epoch",
                 ylabel_left="Loss",
                 ylabel_right="P · R · F1",
@@ -613,7 +613,7 @@ _, trainloss, valloss, fig_ax = train_model(model,
 
 # %%
 #Save model
-torch.save(model.state_dict(), "TrueTransformer-neweedgeslowdropout-8layers.pt")
+torch.save(model.state_dict(), "TrueTransformer-neweedgeshighdroout.pt")
 
 # %%
 # model_path = "./FULLTRAINEDALLDATAModelf1-74-learning.pt"
