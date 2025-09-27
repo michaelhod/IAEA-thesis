@@ -39,8 +39,8 @@ class GraphAttentionNetwork(nn.Module):
         # ── Edge feature projector ────────────── (It is not an explicit linear layer as it works on a sparse matrix)
         self.AW_edge = nn.Parameter(torch.empty(edge_in_dim, edge_emb_dim))
         nn.init.xavier_uniform_(self.AW_edge)
-        # self.EW_edge = nn.Parameter(torch.empty(edge_in_dim, edge_emb_dim))
-        # nn.init.xavier_uniform_(self.EW_edge)
+        self.EW_edge = nn.Parameter(torch.empty(edge_in_dim, edge_emb_dim))
+        nn.init.xavier_uniform_(self.EW_edge)
 
         # ── Edge-level MLP decoder (unchanged) ────────────────────────
         self.edge_mlp = nn.Sequential(
@@ -96,7 +96,7 @@ class GraphAttentionNetwork(nn.Module):
             h = conv(h, A_edge_index, batch, edge_attr=A_edge_emb)
 
         # 3) candidate-edge projection  φ(E) = E @ W_edge
-        E_edge_emb = torch.sparse.mm(E_edge_attr, self.AW_edge)     # (N_E , 8)
+        E_edge_emb = torch.sparse.mm(E_edge_attr, self.EW_edge)     # (N_E , 8)
         
         if self.training:
             mask = torch.rand(E_edge_emb.size(0), 1,
